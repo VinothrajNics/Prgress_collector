@@ -1,291 +1,257 @@
-const BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://collect-api.collect-process-api.workers.dev";
 
 export interface Client {
   id: number;
   name: string;
-  email?: string | null;
-  username?: string | null;
+  email: string | null;
+  username: string;
   created_at: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  role: "admin" | "client";
+  username?: string;
+  client?: Client;
+}
+
+export interface MeResponse {
+  role: "admin" | "client";
+  username?: string;
+  client?: Client;
 }
 
 export interface Department {
   id: number;
   name: string;
-  description?: string | null;
-  created_at?: string;
+  description: string | null;
+  created_at: string;
 }
 
 export interface ClientDepartment {
   client_department_id: number;
   department_id: number;
   name: string;
-  description?: string | null;
+  description: string | null;
   process_count: number;
-}
-
-export interface Process {
-  id: number;
-  client_department_id: number;
-  title: string;
-  description?: string | null;
-  type: "flow" | "standalone";
-  status: "pending" | "in_progress" | "done";
-  flow_order?: number | null;
-  notes?: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface AdminClient extends Client {
   departments: ClientDepartment[];
 }
 
-export interface AuthUser {
-  role: "admin" | "client";
-  client_id?: number | null;
-  client?: Client | null;
-  username?: string;
-  name?: string;
+export interface ProcessInput {
+  title: string;
+  description?: string;
+  type?: "flow" | "standalone";
+  status?: "pending" | "in_progress" | "done";
+  flow_order?: number;
+  notes?: string;
 }
 
-export interface LoginResponse {
-  token?: string;
-  access_token?: string;
-  user?: AuthUser;
-  role?: "admin" | "client";
-  client?: Client | null;
-  client_id?: number | null;
+export interface Process {
+  id: number;
+  client_department_id: number;
+  title: string;
+  description: string | null;
+  type: "flow" | "standalone";
+  status: "pending" | "in_progress" | "done";
+  flow_order: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  return (
-    localStorage.getItem("collect_token") ||
-    localStorage.getItem("token") ||
-    null
-  );
-}
-
-function saveToken(token: string) {
-  if (typeof window === "undefined") return;
-
-  localStorage.setItem("collect_token", token);
-}
-
-function clearToken() {
-  if (typeof window === "undefined") return;
-
-  localStorage.removeItem("collect_token");
-  localStorage.removeItem("token");
-  localStorage.removeItem("collect_user");
-}
-
-async function req<T>(
-  path: string,
+async function request<T>(
+  endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getToken();
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("collect_token")
+      : null;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+  const headers = new Headers(options.headers);
+
+  headers.set("Content-Type", "application/json");
 
   if (token) {
-    (headers as Record<string, string>).Authorization =
-      `Bearer ${token}`;
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${BASE}${path}`, {
+  const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers,
-    credentials: "include",
-    cache: "no-store",
   });
 
-  if (response.status === 401) {
-    clearToken();
+  let data: any = null;
 
-    if (
-      typeof window !== "undefined" &&
-      !window.location.pathname.startsWith("/login")
-    ) {
-      window.location.href = "/login";
-    }
-
-    throw new Error("Your session has expired. Please login again.");
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
   }
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({
-      error: response.statusText,
-    }));
-
     throw new Error(
-      (errorBody as any)?.error ||
-        (errorBody as any)?.message ||
-        "Request failed"
+      data?.error ||
+        `Request failed with status ${response.status}`
     );
   }
 
-  return response.json();
+  return data as T;
 }
 
-export const api = {
-  /* =========================================================
-     AUTH
-  ========================================================= */
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
 
-  login: async (
+export const api = {
+  async login(
     username: string,
     password: string
-  ): Promise<LoginResponse> => {
-    const response = await req<LoginResponse>("/login", {
-      method: "POST",
-      body: JSON.stringify({
-        username,
-        password,
-      }),
-    });
+  ): Promise<LoginResponse> {
+    /*
+     * The backend has two login endpoints:
+     *
+     * /admin-login
+     * /client-login
+     *
+     * We first try client-login.
+     *
+     * If that fails, try admin-login.
+     *
+     * This allows one common login page.
+     */
 
-    const token =
-      response.token ||
-      response.access_token ||
-      (response as any)?.session?.token;
+    let clientError: any = null;
 
-    if (token) {
-      saveToken(token);
+    try {
+      const result = await request<LoginResponse>(
+        "/client-login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+        }
+      );
+
+      saveLogin(result);
+
+      return result;
+    } catch (error) {
+      clientError = error;
     }
 
-    const user: AuthUser = {
-      ...(response.user || {}),
-      role:
-        response.user?.role ||
-        response.role ||
-        "client",
-      client_id:
-        response.user?.client_id ??
-        response.client_id ??
-        null,
-      client:
-        response.user?.client ??
-        response.client ??
-        null,
-    };
+    try {
+      const result = await request<LoginResponse>(
+        "/admin-login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+        }
+      );
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "collect_user",
-        JSON.stringify(user)
+      saveLogin(result);
+
+      return result;
+    } catch (adminError: any) {
+      /*
+       * If both fail, show the useful backend error.
+       */
+
+      throw new Error(
+        adminError?.message ||
+          clientError?.message ||
+          "Invalid username or password."
       );
     }
-
-    return {
-      ...response,
-      user,
-    };
   },
 
-  logout: async () => {
+  async me(): Promise<MeResponse> {
+    return request<MeResponse>("/me");
+  },
+
+  async logout(): Promise<void> {
     try {
-      await req("/logout", {
+      await request("/logout", {
         method: "POST",
       });
-    } catch {
-      // Even if backend logout fails,
-      // remove local session.
-    }
-
-    clearToken();
-
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
+    } finally {
+      clearLogin();
     }
   },
 
-  me: async (): Promise<AuthUser> => {
-    const stored =
-      typeof window !== "undefined"
-        ? localStorage.getItem("collect_user")
-        : null;
+  /*
+  |--------------------------------------------------------------------------
+  | Clients
+  |--------------------------------------------------------------------------
+  */
 
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        // Continue to backend.
-      }
-    }
-
-    const response = await req<any>("/me");
-
-    const user: AuthUser = {
-      ...(response.user || response),
-      role:
-        response.user?.role ||
-        response.role,
-      client_id:
-        response.user?.client_id ??
-        response.client_id ??
-        null,
-      client:
-        response.user?.client ??
-        response.client ??
-        null,
-    };
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "collect_user",
-        JSON.stringify(user)
-      );
-    }
-
-    return user;
+  async getClients(): Promise<Client[]> {
+    return request<Client[]>("/clients");
   },
 
-  /* =========================================================
-     CLIENTS
-  ========================================================= */
+  async getClient(
+    clientId: number
+  ): Promise<Client> {
+    return request<Client>(
+      `/clients/${clientId}`
+    );
+  },
 
-  getClients: () =>
-    req<Client[]>("/clients"),
-
-  getClient: (id: number) =>
-    req<Client>(`/clients/${id}`),
-
-  createClient: (
+  async createClient(
     name: string,
-    email?: string,
-    username?: string,
-    password?: string
-  ) =>
-    req<Client>("/clients", {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        email,
-        username,
-        password,
-      }),
-    }),
+    email: string | undefined,
+    username: string,
+    password: string
+  ): Promise<Client> {
+    return request<Client>(
+      "/clients",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          email,
+          username,
+          password,
+        }),
+      }
+    );
+  },
 
-  /* =========================================================
-     CLIENT DEPARTMENTS
-  ========================================================= */
+  /*
+  |--------------------------------------------------------------------------
+  | Departments
+  |--------------------------------------------------------------------------
+  */
 
-  getClientDepartments: (clientId: number) =>
-    req<ClientDepartment[]>(
+  async getClientDepartments(
+    clientId: number
+  ): Promise<ClientDepartment[]> {
+    return request<ClientDepartment[]>(
       `/clients/${clientId}/departments`
-    ),
+    );
+  },
 
-  assignDepartment: (
+  async assignDepartment(
     clientId: number,
     departmentId: number
-  ) =>
-    req(
+  ): Promise<{
+    id: number;
+    client_id: number;
+    department_id: number;
+  }> {
+    return request(
       `/clients/${clientId}/departments`,
       {
         method: "POST",
@@ -293,78 +259,255 @@ export const api = {
           department_id: departmentId,
         }),
       }
-    ),
+    );
+  },
 
-  /* =========================================================
-     DEPARTMENTS
-  ========================================================= */
+  async getDepartments(): Promise<Department[]> {
+    return request<Department[]>("/departments");
+  },
 
-  getDepartments: () =>
-    req<Department[]>("/departments"),
-
-  createDepartment: (
+  async createDepartment(
     name: string,
     description?: string
-  ) =>
-    req<Department>("/departments", {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        description,
-      }),
-    }),
+  ): Promise<Department> {
+    return request<Department>(
+      "/departments",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          description,
+        }),
+      }
+    );
+  },
 
-  /* =========================================================
-     PROCESSES
-  ========================================================= */
+  /*
+  |--------------------------------------------------------------------------
+  | Processes
+  |--------------------------------------------------------------------------
+  */
 
-  getProcesses: (
+  async getProcesses(
     clientId: number,
     departmentId: number
-  ) =>
-    req<Process[]>(
+  ): Promise<Process[]> {
+    return request<Process[]>(
       `/clients/${clientId}/departments/${departmentId}/processes`
-    ),
+    );
+  },
 
-  createProcess: (
+  async createProcess(
     clientId: number,
     departmentId: number,
-    data: Partial<Process>
-  ) =>
-    req<Process>(
+    data: ProcessInput
+  ): Promise<Process> {
+    return request<Process>(
       `/clients/${clientId}/departments/${departmentId}/processes`,
       {
         method: "POST",
         body: JSON.stringify(data),
       }
-    ),
+    );
+  },
 
-  updateProcess: (
-    id: number,
-    data: Partial<Process>
-  ) =>
-    req<Process>(`/processes/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  async updateProcess(
+    processId: number,
+    data: Partial<ProcessInput>
+  ): Promise<Process> {
+    return request<Process>(
+      `/processes/${processId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+  },
 
-  deleteProcess: (id: number) =>
-    req(`/processes/${id}`, {
-      method: "DELETE",
-    }),
+  async deleteProcess(
+    processId: number
+  ): Promise<{ success: boolean }> {
+    return request(
+      `/processes/${processId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  },
 
-  /* =========================================================
-     ADMIN
-  ========================================================= */
+  /*
+  |--------------------------------------------------------------------------
+  | Admin
+  |--------------------------------------------------------------------------
+  */
 
-  getAdminOverview: () =>
-    req<AdminClient[]>("/admin/overview"),
+  async getAdminOverview(): Promise<AdminClient[]> {
+    return request<AdminClient[]>("/admin/overview");
+  },
 
-  getAdminProcesses: (
+  async getAdminProcesses(
     clientId: number,
     departmentId: number
-  ) =>
-    req<Process[]>(
+  ): Promise<Process[]> {
+    return request<Process[]>(
       `/admin/clients/${clientId}/departments/${departmentId}/processes`
-    ),
+    );
+  },
 };
+
+/*
+|--------------------------------------------------------------------------
+| Login storage
+|--------------------------------------------------------------------------
+*/
+
+function saveLogin(
+  result: LoginResponse
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(
+    "collect_token",
+    result.token
+  );
+
+  localStorage.setItem(
+    "collect_role",
+    result.role
+  );
+
+  /*
+   * Save complete client information.
+   */
+
+  if (result.client) {
+    localStorage.setItem(
+      "collect_client",
+      JSON.stringify(result.client)
+    );
+
+    /*
+     * This is useful for components that
+     * only need the ID.
+     */
+
+    localStorage.setItem(
+      "collect_client_id",
+      String(result.client.id)
+    );
+  }
+
+  if (result.username) {
+    localStorage.setItem(
+      "collect_username",
+      result.username
+    );
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public auth helpers
+|--------------------------------------------------------------------------
+*/
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return localStorage.getItem(
+    "collect_token"
+  );
+}
+
+export function getRole():
+  | "admin"
+  | "client"
+  | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const role =
+    localStorage.getItem("collect_role");
+
+  if (
+    role === "admin" ||
+    role === "client"
+  ) {
+    return role;
+  }
+
+  return null;
+}
+
+export function getClientId(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const value =
+    localStorage.getItem(
+      "collect_client_id"
+    );
+
+  if (!value) {
+    return null;
+  }
+
+  const id = Number(value);
+
+  return Number.isInteger(id)
+    ? id
+    : null;
+}
+
+export function getStoredClient(): Client | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const value =
+    localStorage.getItem(
+      "collect_client"
+    );
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as Client;
+  } catch {
+    return null;
+  }
+}
+
+export function clearLogin() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    "collect_token"
+  );
+
+  localStorage.removeItem(
+    "collect_role"
+  );
+
+  localStorage.removeItem(
+    "collect_client"
+  );
+
+  localStorage.removeItem(
+    "collect_client_id"
+  );
+
+  localStorage.removeItem(
+    "collect_username"
+  );
+}

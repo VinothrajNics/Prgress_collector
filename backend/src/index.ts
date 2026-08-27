@@ -1,9 +1,6 @@
 import { Hono } from 'hono';
-
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-
-import type { Env } from './db.js';
 
 import auth from './routes/auth.js';
 import clients from './routes/clients.js';
@@ -11,27 +8,21 @@ import departments from './routes/departments.js';
 import processes from './routes/processes.js';
 import admin from './routes/admin.js';
 
-const app =
-  new Hono<{
-    Bindings: Env;
-  }>();
+import type { Env } from './db.js';
 
-/*
-|--------------------------------------------------------------------------
-| Logger
-|--------------------------------------------------------------------------
-*/
+const app = new Hono<{
+  Bindings: Env;
+}>();
 
-app.use(
-  '*',
-  logger()
-);
+/* =======================================================
+   LOGGER
+======================================================= */
 
-/*
-|--------------------------------------------------------------------------
-| CORS
-|--------------------------------------------------------------------------
-*/
+app.use('*', logger());
+
+/* =======================================================
+   CORS
+======================================================= */
 
 app.use(
   '*',
@@ -45,28 +36,29 @@ app.use(
         'http://127.0.0.1:3000',
         frontendUrl,
       ].filter(
-        Boolean
-      ) as string[];
+        (value): value is string =>
+          Boolean(value)
+      );
+
+      /*
+        Development / server-to-server requests
+      */
 
       if (!origin) {
-        return (
-          allowedOrigins[0] ??
-          '*'
-        );
+        return allowedOrigins[0] ?? '*';
       }
 
       if (
-        allowedOrigins.includes(
-          origin
-        )
+        allowedOrigins.includes(origin)
       ) {
         return origin;
       }
 
-      return (
-        allowedOrigins[0] ??
-        '*'
-      );
+      /*
+        Don't allow unknown origins.
+      */
+
+      return allowedOrigins[0] ?? '';
     },
 
     allowMethods: [
@@ -82,134 +74,103 @@ app.use(
       'Authorization',
     ],
 
+    exposeHeaders: [
+      'Content-Type',
+    ],
+
     credentials: true,
   })
 );
 
-/*
-|--------------------------------------------------------------------------
-| Health
-|--------------------------------------------------------------------------
-*/
+/* =======================================================
+   HEALTH
+======================================================= */
 
-app.get(
-  '/',
-  (c) => {
+app.get('/', (c) => {
+  return c.json({
+    status: 'ok',
+    message:
+      'Collect API running 🚀',
+  });
+});
+
+app.get('/health', async (c) => {
+  try {
+    const result =
+      await c.env.DB
+        .prepare(
+          'SELECT 1 AS ok'
+        )
+        .first<{ ok: number }>();
+
     return c.json({
       status: 'ok',
-      message:
-        'Collect API running 🚀',
+      database:
+        result?.ok === 1,
     });
+  } catch (error) {
+    console.error(
+      'Health check error:',
+      error
+    );
+
+    return c.json(
+      {
+        status: 'error',
+        database: false,
+      },
+      500
+    );
   }
-);
+});
 
-app.get(
-  '/health',
-  async (c) => {
-    try {
-      const result =
-        await c.env.DB
-          .prepare(
-            'SELECT 1 as ok'
-          )
-          .first<{
-            ok: number;
-          }>();
-
-      return c.json({
-        status: 'ok',
-        database:
-          result?.ok === 1,
-      });
-    } catch (error) {
-      console.error(
-        'Health check error:',
-        error
-      );
-
-      return c.json(
-        {
-          status: 'error',
-          database: false,
-        },
-        500
-      );
-    }
-  }
-);
+/* =======================================================
+   AUTHENTICATION
+======================================================= */
 
 /*
-|--------------------------------------------------------------------------
-| Routes
-|--------------------------------------------------------------------------
+  POST /admin-login
+  POST /client-login
+  GET  /me
+  POST /logout
 */
 
-app.route(
-  '/',
-  auth
-);
+app.route('/', auth);
+
+/* =======================================================
+   CLIENTS
+======================================================= */
 
 app.route(
   '/clients',
   clients
 );
 
+/* =======================================================
+   DEPARTMENTS
+======================================================= */
+
 app.route(
   '/departments',
   departments
 );
+
+/* =======================================================
+   PROCESSES
+======================================================= */
 
 app.route(
   '/',
   processes
 );
 
+/* =======================================================
+   ADMIN
+======================================================= */
+
 app.route(
   '/admin',
   admin
-);
-
-/*
-|--------------------------------------------------------------------------
-| 404
-|--------------------------------------------------------------------------
-*/
-
-app.notFound(
-  (c) => {
-    return c.json(
-      {
-        error:
-          'Endpoint not found',
-        path: c.req.path,
-        method: c.req.method,
-      },
-      404
-    );
-  }
-);
-
-/*
-|--------------------------------------------------------------------------
-| Global Error Handler
-|--------------------------------------------------------------------------
-*/
-
-app.onError(
-  (error, c) => {
-    console.error(
-      'Unhandled error:',
-      error
-    );
-
-    return c.json(
-      {
-        error:
-          'Internal server error',
-      },
-      500
-    );
-  }
 );
 
 export default app;

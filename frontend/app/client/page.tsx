@@ -8,6 +8,7 @@ import {
   ClientDepartment,
   Department,
   Process,
+  ProcessInput,
 } from "@/lib/api";
 
 import {
@@ -73,7 +74,7 @@ function ProcessModal({
   initial?: Process;
   onClose: () => void;
   onSave: (
-    data: Partial<Process>
+    data: ProcessInput
   ) => Promise<void>;
 }) {
   const [title, setTitle] = useState(
@@ -457,7 +458,7 @@ function DepartmentPanel({
   };
 
   const saveProcess = async (
-    data: Partial<Process>
+    data: ProcessInput
   ) => {
     if (
       modal?.mode === "edit" &&
@@ -980,7 +981,9 @@ export default function ClientPage() {
         return;
       }
 
-      if (!user.client_id) {
+      const clientId = user.client?.id;
+
+      if (!clientId) {
         throw new Error(
           "Your account is not linked to a client."
         );
@@ -991,10 +994,10 @@ export default function ClientPage() {
         departmentData,
         clientDepartmentData,
       ] = await Promise.all([
-        api.getClient(user.client_id),
+        api.getClient(clientId),
         api.getDepartments(),
         api.getClientDepartments(
-          user.client_id
+          clientId
         ),
       ]);
 

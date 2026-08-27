@@ -482,7 +482,7 @@ function CreateClientModal({
 
           <div>
             <label className="label">
-              Client Name
+              Company Name
             </label>
 
             <input
@@ -528,7 +528,7 @@ function CreateClientModal({
 
           <div>
             <label className="label">
-              Temporary Password
+              Password
             </label>
 
             <input
