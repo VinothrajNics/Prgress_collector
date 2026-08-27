@@ -1,95 +1,155 @@
 import { Hono } from 'hono';
+
 import type { Env } from '../db.js';
 
-const departments = new Hono<{ Bindings: Env }>();
+import {
+  requireAdmin,
+  requireAuth,
+} from '../auth.js';
 
-// GET all departments
-departments.get('/', async (c) => {
-  try {
-    const res = await c.env.DB
-      .prepare(`
-        SELECT *
-        FROM departments
-        ORDER BY name
-      `)
-      .all();
+const departments =
+  new Hono<{ Bindings: Env }>();
 
-    return c.json(res.results);
-  } catch (error) {
-    console.error('GET /departments error:', error);
+/*
+|--------------------------------------------------------------------------
+| GET ALL DEPARTMENTS
+|--------------------------------------------------------------------------
+*/
 
-    return c.json(
-      {
-        error: 'Failed to fetch departments',
-      },
-      500
-    );
-  }
-});
+departments.get(
+  '/',
+  requireAuth,
+  async (c) => {
+    try {
+      const res =
+        await c.env.DB
+          .prepare(`
+            SELECT *
+            FROM departments
+            ORDER BY name
+          `)
+          .all();
 
-// CREATE department
-departments.post('/', async (c) => {
-  const body = await c.req.json<{
-    name: string;
-    description?: string;
-  }>();
+      return c.json(
+        res.results
+      );
+    } catch (error) {
+      console.error(
+        'GET departments error:',
+        error
+      );
 
-  const name = body.name?.trim();
-
-  if (!name) {
-    return c.json(
-      {
-        error: 'name is required',
-      },
-      400
-    );
-  }
-
-  try {
-    const result = await c.env.DB
-      .prepare(`
-        INSERT INTO departments
-          (name, description)
-        VALUES (?, ?)
-      `)
-      .bind(
-        name,
-        body.description?.trim() || null
-      )
-      .run();
-
-    const department = await c.env.DB
-      .prepare(`
-        SELECT *
-        FROM departments
-        WHERE id = ?
-      `)
-      .bind(result.meta.last_row_id)
-      .first();
-
-    return c.json(department, 201);
-  } catch (error: any) {
-    console.error('POST /departments error:', error);
-
-    if (
-      error?.message?.includes('UNIQUE') ||
-      error?.message?.includes('constraint')
-    ) {
       return c.json(
         {
-          error: 'Department name already exists',
+          error:
+            'Failed to fetch departments',
         },
-        409
+        500
+      );
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| CREATE DEPARTMENT
+|--------------------------------------------------------------------------
+*/
+
+departments.post(
+  '/',
+  requireAdmin,
+  async (c) => {
+    const body =
+      await c.req.json<{
+        name: string;
+        description?: string;
+      }>();
+
+    const name =
+      body.name?.trim();
+
+    if (!name) {
+      return c.json(
+        {
+          error:
+            'name is required',
+        },
+        400
       );
     }
 
-    return c.json(
-      {
-        error: 'Failed to create department',
-      },
-      500
-    );
+    try {
+      const result =
+        await c.env.DB
+          .prepare(`
+            INSERT INTO departments (
+              name,
+              description
+            )
+            VALUES (?, ?)
+          `)
+          .bind(
+            name,
+            body.description?.trim() ||
+              null
+          )
+          .run();
+
+      const department =
+        await c.env.DB
+          .prepare(`
+            SELECT *
+            FROM departments
+            WHERE id = ?
+          `)
+          .bind(
+            result.meta.last_row_id
+          )
+          .first();
+
+      return c.json(
+        department,
+        201
+      );
+    } catch (error: any) {
+      console.error(
+        'POST departments error:',
+        error
+      );
+
+      const message =
+        String(
+          error?.message ??
+            ''
+        ).toLowerCase();
+
+      if (
+        message.includes(
+          'unique'
+        ) ||
+        message.includes(
+          'constraint'
+        )
+      ) {
+        return c.json(
+          {
+            error:
+              'Department name already exists',
+          },
+          409
+        );
+      }
+
+      return c.json(
+        {
+          error:
+            'Failed to create department',
+        },
+        500
+      );
+    }
   }
-});
+);
 
 export default departments;

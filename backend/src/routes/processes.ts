@@ -1,54 +1,116 @@
 import { Hono } from 'hono';
+
 import type { Env } from '../db.js';
 
-const processes = new Hono<{ Bindings: Env }>();
+import {
+  requireAdmin,
+  requireAuth,
+} from '../auth.js';
 
-// GET processes for client + department
+const processes =
+  new Hono<{ Bindings: Env }>();
+
+/*
+|--------------------------------------------------------------------------
+| GET PROCESSES
+|--------------------------------------------------------------------------
+|
+| Admin can view any client.
+| Client can view only their own client.
+|--------------------------------------------------------------------------
+*/
+
 processes.get(
   '/clients/:clientId/departments/:deptId/processes',
+  requireAuth,
   async (c) => {
-    const clientId = Number(c.req.param('clientId'));
-    const departmentId = Number(c.req.param('deptId'));
+    const clientId =
+      Number(
+        c.req.param(
+          'clientId'
+        )
+      );
+
+    const departmentId =
+      Number(
+        c.req.param(
+          'deptId'
+        )
+      );
 
     if (
-      !Number.isInteger(clientId) ||
-      !Number.isInteger(departmentId)
+      !Number.isInteger(
+        clientId
+      ) ||
+      !Number.isInteger(
+        departmentId
+      )
     ) {
       return c.json(
         {
-          error: 'Invalid client or department id',
+          error:
+            'Invalid client or department id',
         },
         400
       );
     }
 
-    try {
-      const result = await c.env.DB
-        .prepare(`
-          SELECT p.*
-          FROM processes p
-          JOIN client_departments cd
-            ON cd.id = p.client_department_id
-          WHERE cd.client_id = ?
-            AND cd.department_id = ?
-          ORDER BY
-            CASE
-              WHEN p.type = 'flow' THEN 0
-              ELSE 1
-            END,
-            p.flow_order ASC,
-            p.created_at ASC
-        `)
-        .bind(clientId, departmentId)
-        .all();
+    const user =
+      c.get('authUser');
 
-      return c.json(result.results);
+    if (
+      user.role === 'client' &&
+      user.clientId !== clientId
+    ) {
+      return c.json(
+        {
+          error:
+            'You can only access your own client processes',
+        },
+        403
+      );
+    }
+
+    try {
+      const result =
+        await c.env.DB
+          .prepare(`
+            SELECT
+              p.*
+            FROM processes p
+            JOIN client_departments cd
+              ON cd.id =
+                 p.client_department_id
+            WHERE cd.client_id = ?
+              AND cd.department_id = ?
+            ORDER BY
+              CASE
+                WHEN p.type = 'flow'
+                  THEN 0
+                ELSE 1
+              END,
+              p.flow_order ASC,
+              p.created_at ASC
+          `)
+          .bind(
+            clientId,
+            departmentId
+          )
+          .all();
+
+      return c.json(
+        result.results
+      );
     } catch (error) {
-      console.error('GET processes error:', error);
+      console.error(
+        'GET processes error:',
+        error
+      );
 
       return c.json(
         {
-          error: 'Failed to fetch processes',
+          error:
+            'Failed to fetch processes',
         },
         500
       );
@@ -56,40 +118,70 @@ processes.get(
   }
 );
 
-// CREATE process
+/*
+|--------------------------------------------------------------------------
+| CREATE PROCESS
+|--------------------------------------------------------------------------
+| Admin only
+|--------------------------------------------------------------------------
+*/
+
 processes.post(
   '/clients/:clientId/departments/:deptId/processes',
+  requireAdmin,
   async (c) => {
-    const clientId = Number(c.req.param('clientId'));
-    const departmentId = Number(c.req.param('deptId'));
+    const clientId =
+      Number(
+        c.req.param(
+          'clientId'
+        )
+      );
 
-    const body = await c.req.json<{
-      title: string;
-      description?: string;
-      type?: 'flow' | 'standalone';
-      status?: 'pending' | 'in_progress' | 'done';
-      flow_order?: number;
-      notes?: string;
-    }>();
+    const departmentId =
+      Number(
+        c.req.param(
+          'deptId'
+        )
+      );
+
+    const body =
+      await c.req.json<{
+        title: string;
+        description?: string;
+        type?: 'flow' | 'standalone';
+        status?:
+          | 'pending'
+          | 'in_progress'
+          | 'done';
+        flow_order?: number;
+        notes?: string;
+      }>();
 
     if (
-      !Number.isInteger(clientId) ||
-      !Number.isInteger(departmentId)
+      !Number.isInteger(
+        clientId
+      ) ||
+      !Number.isInteger(
+        departmentId
+      )
     ) {
       return c.json(
         {
-          error: 'Invalid client or department id',
+          error:
+            'Invalid client or department id',
         },
         400
       );
     }
 
-    const title = body.title?.trim();
+    const title =
+      body.title?.trim();
 
     if (!title) {
       return c.json(
         {
-          error: 'title is required',
+          error:
+            'title is required',
         },
         400
       );
@@ -100,74 +192,104 @@ processes.post(
         ? 'flow'
         : 'standalone';
 
+    const allowedStatuses = [
+      'pending',
+      'in_progress',
+      'done',
+    ];
+
     const status =
-      body.status === 'in_progress' ||
-      body.status === 'done'
-        ? body.status
+      allowedStatuses.includes(
+        body.status ?? ''
+      )
+        ? body.status!
         : 'pending';
 
     try {
-      const clientDepartment = await c.env.DB
-        .prepare(`
-          SELECT id
-          FROM client_departments
-          WHERE client_id = ?
-            AND department_id = ?
-        `)
-        .bind(clientId, departmentId)
-        .first<{ id: number }>();
+      const clientDepartment =
+        await c.env.DB
+          .prepare(`
+            SELECT
+              id
+            FROM client_departments
+            WHERE client_id = ?
+              AND department_id = ?
+            LIMIT 1
+          `)
+          .bind(
+            clientId,
+            departmentId
+          )
+          .first<{
+            id: number;
+          }>();
 
       if (!clientDepartment) {
         return c.json(
           {
-            error: 'Department is not assigned to this client',
+            error:
+              'Department is not assigned to this client',
           },
           404
         );
       }
 
-      const result = await c.env.DB
-        .prepare(`
-          INSERT INTO processes (
-            client_department_id,
+      const result =
+        await c.env.DB
+          .prepare(`
+            INSERT INTO processes (
+              client_department_id,
+              title,
+              description,
+              type,
+              status,
+              flow_order,
+              notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `)
+          .bind(
+            clientDepartment.id,
             title,
-            description,
+            body.description?.trim() ||
+              null,
             type,
             status,
-            flow_order,
-            notes
+            type === 'flow'
+              ? body.flow_order ??
+                null
+              : null,
+            body.notes?.trim() ||
+              null
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `)
-        .bind(
-          clientDepartment.id,
-          title,
-          body.description?.trim() || null,
-          type,
-          status,
-          type === 'flow'
-            ? body.flow_order ?? null
-            : null,
-          body.notes?.trim() || null
-        )
-        .run();
+          .run();
 
-      const process = await c.env.DB
-        .prepare(`
-          SELECT *
-          FROM processes
-          WHERE id = ?
-        `)
-        .bind(result.meta.last_row_id)
-        .first();
+      const process =
+        await c.env.DB
+          .prepare(`
+            SELECT *
+            FROM processes
+            WHERE id = ?
+          `)
+          .bind(
+            result.meta.last_row_id
+          )
+          .first();
 
-      return c.json(process, 201);
+      return c.json(
+        process,
+        201
+      );
     } catch (error) {
-      console.error('CREATE process error:', error);
+      console.error(
+        'CREATE process error:',
+        error
+      );
 
       return c.json(
         {
-          error: 'Failed to create process',
+          error:
+            'Failed to create process',
         },
         500
       );
@@ -175,145 +297,240 @@ processes.post(
   }
 );
 
-// UPDATE process
-processes.put('/processes/:id', async (c) => {
-  const id = Number(c.req.param('id'));
+/*
+|--------------------------------------------------------------------------
+| UPDATE PROCESS
+|--------------------------------------------------------------------------
+*/
 
-  const body = await c.req.json<{
-    title?: string;
-    description?: string;
-    type?: 'flow' | 'standalone';
-    status?: 'pending' | 'in_progress' | 'done';
-    flow_order?: number;
-    notes?: string;
-  }>();
+processes.put(
+  '/processes/:id',
+  requireAdmin,
+  async (c) => {
+    const id =
+      Number(
+        c.req.param('id')
+      );
 
-  if (!Number.isInteger(id)) {
-    return c.json(
-      {
-        error: 'Invalid process id',
-      },
-      400
-    );
-  }
-
-  try {
-    const existing = await c.env.DB
-      .prepare(`
-        SELECT *
-        FROM processes
-        WHERE id = ?
-      `)
-      .bind(id)
-      .first();
-
-    if (!existing) {
+    if (
+      !Number.isInteger(id)
+    ) {
       return c.json(
         {
-          error: 'Process not found',
+          error:
+            'Invalid process id',
         },
-        404
+        400
       );
     }
 
-    await c.env.DB
-      .prepare(`
-        UPDATE processes
-        SET
-          title = ?,
-          description = ?,
-          type = ?,
-          status = ?,
-          flow_order = ?,
-          notes = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `)
-      .bind(
-        body.title?.trim() || (existing as any).title,
-        body.description?.trim() ||
-          (existing as any).description ||
-          null,
-        body.type || (existing as any).type,
-        body.status || (existing as any).status,
-        body.type === 'standalone'
-          ? null
-          : body.flow_order ??
-            (existing as any).flow_order ??
-            null,
-        body.notes?.trim() ||
-          (existing as any).notes ||
-          null,
-        id
-      )
-      .run();
+    const body =
+      await c.req.json<{
+        title?: string;
+        description?: string;
+        type?:
+          | 'flow'
+          | 'standalone';
+        status?:
+          | 'pending'
+          | 'in_progress'
+          | 'done';
+        flow_order?: number;
+        notes?: string;
+      }>();
 
-    const updated = await c.env.DB
-      .prepare(`
-        SELECT *
-        FROM processes
-        WHERE id = ?
-      `)
-      .bind(id)
-      .first();
+    try {
+      const existing =
+        await c.env.DB
+          .prepare(`
+            SELECT *
+            FROM processes
+            WHERE id = ?
+          `)
+          .bind(id)
+          .first();
 
-    return c.json(updated);
-  } catch (error) {
-    console.error('UPDATE process error:', error);
+      if (!existing) {
+        return c.json(
+          {
+            error:
+              'Process not found',
+          },
+          404
+        );
+      }
 
-    return c.json(
-      {
-        error: 'Failed to update process',
-      },
-      500
-    );
-  }
-});
+      const old =
+        existing as any;
 
-// DELETE process
-processes.delete('/processes/:id', async (c) => {
-  const id = Number(c.req.param('id'));
+      const title =
+        body.title !== undefined
+          ? body.title.trim()
+          : old.title;
 
-  if (!Number.isInteger(id)) {
-    return c.json(
-      {
-        error: 'Invalid process id',
-      },
-      400
-    );
-  }
+      if (!title) {
+        return c.json(
+          {
+            error:
+              'title cannot be empty',
+          },
+          400
+        );
+      }
 
-  try {
-    const result = await c.env.DB
-      .prepare(`
-        DELETE FROM processes
-        WHERE id = ?
-      `)
-      .bind(id)
-      .run();
+      const type =
+        body.type ??
+        old.type;
 
-    if (result.meta.changes === 0) {
+      const status =
+        body.status ??
+        old.status;
+
+      const flowOrder =
+        type === 'flow'
+          ? body.flow_order ??
+            old.flow_order ??
+            null
+          : null;
+
+      const description =
+        body.description !==
+        undefined
+          ? body.description.trim() ||
+            null
+          : old.description ??
+            null;
+
+      const notes =
+        body.notes !==
+        undefined
+          ? body.notes.trim() ||
+            null
+          : old.notes ??
+            null;
+
+      await c.env.DB
+        .prepare(`
+          UPDATE processes
+          SET
+            title = ?,
+            description = ?,
+            type = ?,
+            status = ?,
+            flow_order = ?,
+            notes = ?,
+            updated_at =
+              CURRENT_TIMESTAMP
+          WHERE id = ?
+        `)
+        .bind(
+          title,
+          description,
+          type,
+          status,
+          flowOrder,
+          notes,
+          id
+        )
+        .run();
+
+      const updated =
+        await c.env.DB
+          .prepare(`
+            SELECT *
+            FROM processes
+            WHERE id = ?
+          `)
+          .bind(id)
+          .first();
+
+      return c.json(
+        updated
+      );
+    } catch (error) {
+      console.error(
+        'UPDATE process error:',
+        error
+      );
+
       return c.json(
         {
-          error: 'Process not found',
+          error:
+            'Failed to update process',
         },
-        404
+        500
+      );
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| DELETE PROCESS
+|--------------------------------------------------------------------------
+*/
+
+processes.delete(
+  '/processes/:id',
+  requireAdmin,
+  async (c) => {
+    const id =
+      Number(
+        c.req.param('id')
+      );
+
+    if (
+      !Number.isInteger(id)
+    ) {
+      return c.json(
+        {
+          error:
+            'Invalid process id',
+        },
+        400
       );
     }
 
-    return c.json({
-      success: true,
-    });
-  } catch (error) {
-    console.error('DELETE process error:', error);
+    try {
+      const result =
+        await c.env.DB
+          .prepare(`
+            DELETE FROM processes
+            WHERE id = ?
+          `)
+          .bind(id)
+          .run();
 
-    return c.json(
-      {
-        error: 'Failed to delete process',
-      },
-      500
-    );
+      if (
+        result.meta.changes === 0
+      ) {
+        return c.json(
+          {
+            error:
+              'Process not found',
+          },
+          404
+        );
+      }
+
+      return c.json({
+        success: true,
+      });
+    } catch (error) {
+      console.error(
+        'DELETE process error:',
+        error
+      );
+
+      return c.json(
+        {
+          error:
+            'Failed to delete process',
+        },
+        500
+      );
+    }
   }
-});
+);
 
 export default processes;
