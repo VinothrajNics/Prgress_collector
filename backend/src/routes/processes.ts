@@ -1,187 +1,95 @@
 import { Hono } from 'hono';
-import { db } from '../db.js';
-import {
-  requireAdmin,
-  requireClient,
-} from '../auth.js';
+import type { Env } from '../db.js';
 
-const processes = new Hono();
+const processes = new Hono<{ Bindings: Env }>();
 
-/*
-|--------------------------------------------------------------------------
-| Helper: check that client owns client_department
-|--------------------------------------------------------------------------
-*/
-
-async function getClientDepartment(
-  clientId: number,
-  clientDepartmentId: number
-) {
-  const result =
-    await db.execute({
-      sql: `
-        SELECT
-          cd.id,
-          cd.client_id,
-          cd.department_id
-        FROM client_departments cd
-        WHERE cd.id = ?
-          AND cd.client_id = ?
-        LIMIT 1
-      `,
-      args: [
-        clientDepartmentId,
-        clientId,
-      ],
-    });
-
-  return result.rows[0] as any;
-}
-
-/*
-|--------------------------------------------------------------------------
-| CLIENT: Get processes
-|--------------------------------------------------------------------------
-*/
-
+// GET processes for client + department
 processes.get(
   '/clients/:clientId/departments/:deptId/processes',
-  requireClient,
   async (c) => {
-    const user =
-      c.get('authUser') as any;
-
-    const clientId =
-      Number(
-        c.req.param('clientId')
-      );
-
-    const deptId =
-      Number(
-        c.req.param('deptId')
-      );
+    const clientId = Number(c.req.param('clientId'));
+    const departmentId = Number(c.req.param('deptId'));
 
     if (
-      clientId !==
-      Number(user.clientId)
+      !Number.isInteger(clientId) ||
+      !Number.isInteger(departmentId)
     ) {
       return c.json(
         {
-          error:
-            'You cannot access another client',
+          error: 'Invalid client or department id',
         },
-        403
+        400
       );
     }
 
-    const cd =
-      await getClientDepartment(
-        Number(user.clientId),
-        deptId
-      );
-
-    if (!cd) {
-      return c.json(
-        {
-          error:
-            'Department not found',
-        },
-        404
-      );
-    }
-
-    const res =
-      await db.execute({
-        sql: `
-          SELECT *
-          FROM processes
-          WHERE client_department_id = ?
+    try {
+      const result = await c.env.DB
+        .prepare(`
+          SELECT p.*
+          FROM processes p
+          JOIN client_departments cd
+            ON cd.id = p.client_department_id
+          WHERE cd.client_id = ?
+            AND cd.department_id = ?
           ORDER BY
             CASE
-              WHEN type = 'flow'
-              THEN 0
+              WHEN p.type = 'flow' THEN 0
               ELSE 1
             END,
-            flow_order ASC,
-            created_at ASC
-        `,
-        args: [deptId],
-      });
+            p.flow_order ASC,
+            p.created_at ASC
+        `)
+        .bind(clientId, departmentId)
+        .all();
 
-    return c.json(res.rows);
+      return c.json(result.results);
+    } catch (error) {
+      console.error('GET processes error:', error);
+
+      return c.json(
+        {
+          error: 'Failed to fetch processes',
+        },
+        500
+      );
+    }
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| CLIENT: Create process
-|--------------------------------------------------------------------------
-*/
-
+// CREATE process
 processes.post(
   '/clients/:clientId/departments/:deptId/processes',
-  requireClient,
   async (c) => {
-    const user =
-      c.get('authUser') as any;
+    const clientId = Number(c.req.param('clientId'));
+    const departmentId = Number(c.req.param('deptId'));
 
-    const clientId =
-      Number(
-        c.req.param('clientId')
-      );
-
-    const deptId =
-      Number(
-        c.req.param('deptId')
-      );
+    const body = await c.req.json<{
+      title: string;
+      description?: string;
+      type?: 'flow' | 'standalone';
+      status?: 'pending' | 'in_progress' | 'done';
+      flow_order?: number;
+      notes?: string;
+    }>();
 
     if (
-      clientId !==
-      Number(user.clientId)
+      !Number.isInteger(clientId) ||
+      !Number.isInteger(departmentId)
     ) {
       return c.json(
         {
-          error:
-            'You cannot modify another client',
+          error: 'Invalid client or department id',
         },
-        403
+        400
       );
     }
 
-    const cd =
-      await getClientDepartment(
-        Number(user.clientId),
-        deptId
-      );
+    const title = body.title?.trim();
 
-    if (!cd) {
+    if (!title) {
       return c.json(
         {
-          error:
-            'Department not found',
-        },
-        404
-      );
-    }
-
-    const body =
-      await c.req.json<{
-        title: string;
-        description?: string;
-        type?: 'flow' | 'standalone';
-        status?:
-          | 'pending'
-          | 'in_progress'
-          | 'done';
-        flow_order?: number;
-        notes?: string;
-      }>();
-
-    if (!body.title?.trim()) {
-      return c.json(
-        {
-          error:
-            'Process title is required',
+          error: 'title is required',
         },
         400
       );
@@ -193,12 +101,33 @@ processes.post(
         : 'standalone';
 
     const status =
-      body.status ??
-      'pending';
+      body.status === 'in_progress' ||
+      body.status === 'done'
+        ? body.status
+        : 'pending';
 
-    const result =
-      await db.execute({
-        sql: `
+    try {
+      const clientDepartment = await c.env.DB
+        .prepare(`
+          SELECT id
+          FROM client_departments
+          WHERE client_id = ?
+            AND department_id = ?
+        `)
+        .bind(clientId, departmentId)
+        .first<{ id: number }>();
+
+      if (!clientDepartment) {
+        return c.json(
+          {
+            error: 'Department is not assigned to this client',
+          },
+          404
+        );
+      }
+
+      const result = await c.env.DB
+        .prepare(`
           INSERT INTO processes (
             client_department_id,
             title,
@@ -209,157 +138,86 @@ processes.post(
             notes
           )
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        args: [
-          deptId,
-          body.title.trim(),
-          body.description?.trim() ||
-            null,
+        `)
+        .bind(
+          clientDepartment.id,
+          title,
+          body.description?.trim() || null,
           type,
           status,
           type === 'flow'
-            ? body.flow_order ??
-              null
+            ? body.flow_order ?? null
             : null,
-          body.notes?.trim() ||
-            null,
-        ],
-      });
+          body.notes?.trim() || null
+        )
+        .run();
 
-    const row =
-      await db.execute({
-        sql: `
+      const process = await c.env.DB
+        .prepare(`
           SELECT *
           FROM processes
           WHERE id = ?
-        `,
-        args: [
-          result.lastInsertRowid,
-        ],
-      });
+        `)
+        .bind(result.meta.last_row_id)
+        .first();
 
-    return c.json(
-      row.rows[0],
-      201
-    );
+      return c.json(process, 201);
+    } catch (error) {
+      console.error('CREATE process error:', error);
+
+      return c.json(
+        {
+          error: 'Failed to create process',
+        },
+        500
+      );
+    }
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| CLIENT: Update process
-|--------------------------------------------------------------------------
-*/
+// UPDATE process
+processes.put('/processes/:id', async (c) => {
+  const id = Number(c.req.param('id'));
 
-processes.put(
-  '/processes/:id',
-  requireClient,
-  async (c) => {
-    const user =
-      c.get('authUser') as any;
+  const body = await c.req.json<{
+    title?: string;
+    description?: string;
+    type?: 'flow' | 'standalone';
+    status?: 'pending' | 'in_progress' | 'done';
+    flow_order?: number;
+    notes?: string;
+  }>();
 
-    const processId =
-      Number(
-        c.req.param('id')
-      );
+  if (!Number.isInteger(id)) {
+    return c.json(
+      {
+        error: 'Invalid process id',
+      },
+      400
+    );
+  }
 
-    const existing =
-      await db.execute({
-        sql: `
-          SELECT
-            p.*,
-            cd.client_id
-          FROM processes p
-          JOIN client_departments cd
-            ON cd.id =
-              p.client_department_id
-          WHERE p.id = ?
-          LIMIT 1
-        `,
-        args: [processId],
-      });
+  try {
+    const existing = await c.env.DB
+      .prepare(`
+        SELECT *
+        FROM processes
+        WHERE id = ?
+      `)
+      .bind(id)
+      .first();
 
-    const process =
-      existing.rows[0] as any;
-
-    if (!process) {
+    if (!existing) {
       return c.json(
         {
-          error:
-            'Process not found',
+          error: 'Process not found',
         },
         404
       );
     }
 
-    if (
-      Number(process.client_id) !==
-      Number(user.clientId)
-    ) {
-      return c.json(
-        {
-          error:
-            'You cannot modify another client',
-        },
-        403
-      );
-    }
-
-    const body =
-      await c.req.json<{
-        title?: string;
-        description?: string;
-        type?: 'flow' | 'standalone';
-        status?:
-          | 'pending'
-          | 'in_progress'
-          | 'done';
-        flow_order?: number;
-        notes?: string;
-      }>();
-
-    const title =
-      body.title !== undefined
-        ? body.title.trim()
-        : process.title;
-
-    const description =
-      body.description !== undefined
-        ? body.description
-        : process.description;
-
-    const type =
-      body.type ??
-      process.type;
-
-    const status =
-      body.status ??
-      process.status;
-
-    const flowOrder =
-      type === 'flow'
-        ? body.flow_order ??
-          process.flow_order ??
-          null
-        : null;
-
-    const notes =
-      body.notes !== undefined
-        ? body.notes
-        : process.notes;
-
-    if (!title) {
-      return c.json(
-        {
-          error:
-            'Process title is required',
-        },
-        400
-      );
-    }
-
-    await db.execute({
-      sql: `
+    await c.env.DB
+      .prepare(`
         UPDATE processes
         SET
           title = ?,
@@ -370,174 +228,92 @@ processes.put(
           notes = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `,
-      args: [
-        title,
-        description || null,
-        type,
-        status,
-        flowOrder,
-        notes || null,
-        processId,
-      ],
-    });
+      `)
+      .bind(
+        body.title?.trim() || (existing as any).title,
+        body.description?.trim() ||
+          (existing as any).description ||
+          null,
+        body.type || (existing as any).type,
+        body.status || (existing as any).status,
+        body.type === 'standalone'
+          ? null
+          : body.flow_order ??
+            (existing as any).flow_order ??
+            null,
+        body.notes?.trim() ||
+          (existing as any).notes ||
+          null,
+        id
+      )
+      .run();
 
-    const row =
-      await db.execute({
-        sql: `
-          SELECT *
-          FROM processes
-          WHERE id = ?
-        `,
-        args: [processId],
-      });
+    const updated = await c.env.DB
+      .prepare(`
+        SELECT *
+        FROM processes
+        WHERE id = ?
+      `)
+      .bind(id)
+      .first();
+
+    return c.json(updated);
+  } catch (error) {
+    console.error('UPDATE process error:', error);
 
     return c.json(
-      row.rows[0]
+      {
+        error: 'Failed to update process',
+      },
+      500
     );
   }
-);
+});
 
-/*
-|--------------------------------------------------------------------------
-| CLIENT: Delete process
-|--------------------------------------------------------------------------
-*/
+// DELETE process
+processes.delete('/processes/:id', async (c) => {
+  const id = Number(c.req.param('id'));
 
-processes.delete(
-  '/processes/:id',
-  requireClient,
-  async (c) => {
-    const user =
-      c.get('authUser') as any;
+  if (!Number.isInteger(id)) {
+    return c.json(
+      {
+        error: 'Invalid process id',
+      },
+      400
+    );
+  }
 
-    const processId =
-      Number(
-        c.req.param('id')
-      );
+  try {
+    const result = await c.env.DB
+      .prepare(`
+        DELETE FROM processes
+        WHERE id = ?
+      `)
+      .bind(id)
+      .run();
 
-    const existing =
-      await db.execute({
-        sql: `
-          SELECT
-            p.id,
-            cd.client_id
-          FROM processes p
-          JOIN client_departments cd
-            ON cd.id =
-              p.client_department_id
-          WHERE p.id = ?
-          LIMIT 1
-        `,
-        args: [processId],
-      });
-
-    const process =
-      existing.rows[0] as any;
-
-    if (!process) {
+    if (result.meta.changes === 0) {
       return c.json(
         {
-          error:
-            'Process not found',
+          error: 'Process not found',
         },
         404
       );
     }
 
-    if (
-      Number(process.client_id) !==
-      Number(user.clientId)
-    ) {
-      return c.json(
-        {
-          error:
-            'You cannot delete another client process',
-        },
-        403
-      );
-    }
-
-    await db.execute({
-      sql: `
-        DELETE FROM processes
-        WHERE id = ?
-      `,
-      args: [processId],
-    });
-
     return c.json({
       success: true,
     });
+  } catch (error) {
+    console.error('DELETE process error:', error);
+
+    return c.json(
+      {
+        error: 'Failed to delete process',
+      },
+      500
+    );
   }
-);
-
-/*
-|--------------------------------------------------------------------------
-| ADMIN: Read-only processes
-|--------------------------------------------------------------------------
-*/
-
-processes.get(
-  '/admin/clients/:clientId/departments/:deptId/processes',
-  requireAdmin,
-  async (c) => {
-    const clientId =
-      Number(
-        c.req.param('clientId')
-      );
-
-    const departmentId =
-      Number(
-        c.req.param('deptId')
-      );
-
-    const cd =
-      await db.execute({
-        sql: `
-          SELECT id
-          FROM client_departments
-          WHERE client_id = ?
-            AND department_id = ?
-          LIMIT 1
-        `,
-        args: [
-          clientId,
-          departmentId,
-        ],
-      });
-
-    if (!cd.rows[0]) {
-      return c.json([]);
-    }
-
-    const clientDepartmentId =
-      Number(
-        (cd.rows[0] as any).id
-      );
-
-    const res =
-      await db.execute({
-        sql: `
-          SELECT *
-          FROM processes
-          WHERE client_department_id = ?
-          ORDER BY
-            CASE
-              WHEN type = 'flow'
-              THEN 0
-              ELSE 1
-            END,
-            flow_order ASC,
-            created_at ASC
-        `,
-        args: [
-          clientDepartmentId,
-        ],
-      });
-
-    return c.json(res.rows);
-  }
-);
+});
 
 export default processes;

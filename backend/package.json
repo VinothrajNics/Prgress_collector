@@ -3,17 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute collect-db --local --file=./schema.sql",
+    "db:remote": "wrangler d1 execute collect-db --remote --file=./schema.sql"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "@libsql/client": "^0.14.0",
-    "hono": "^4.6.14"
+    "hono": "^4.13.5"
   },
   "devDependencies": {
-    "@types/node": "^22.9.1",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "@cloudflare/workers-types": "^5.20260827.1",
+    "wrangler": "^4.127.0"
   }
 }

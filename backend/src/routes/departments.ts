@@ -1,114 +1,95 @@
 import { Hono } from 'hono';
-import { db } from '../db.js';
-import { requireAdmin, requireClient } from '../auth.js';
+import type { Env } from '../db.js';
 
-const departments = new Hono();
+const departments = new Hono<{ Bindings: Env }>();
 
-/*
-|--------------------------------------------------------------------------
-| Get all departments
-|--------------------------------------------------------------------------
-|
-| Admin and clients can see available department definitions.
-|
-*/
+// GET all departments
+departments.get('/', async (c) => {
+  try {
+    const res = await c.env.DB
+      .prepare(`
+        SELECT *
+        FROM departments
+        ORDER BY name
+      `)
+      .all();
 
-departments.get(
-  '/',
-  async (c) => {
-    const res =
-      await db.execute(
-        `
-          SELECT *
-          FROM departments
-          ORDER BY name
-        `
-      );
+    return c.json(res.results);
+  } catch (error) {
+    console.error('GET /departments error:', error);
 
-    return c.json(res.rows);
+    return c.json(
+      {
+        error: 'Failed to fetch departments',
+      },
+      500
+    );
   }
-);
+});
 
-/*
-|--------------------------------------------------------------------------
-| Admin can also create a global department
-|--------------------------------------------------------------------------
-|
-| This is optional administrative functionality.
-| Your client UI uses /clients/me/departments/create
-| so the department is immediately assigned to the client.
-|
-*/
+// CREATE department
+departments.post('/', async (c) => {
+  const body = await c.req.json<{
+    name: string;
+    description?: string;
+  }>();
 
-departments.post(
-  '/',
-  requireAdmin,
-  async (c) => {
-    const body =
-      await c.req.json<{
-        name: string;
-        description?: string;
-      }>();
+  const name = body.name?.trim();
 
-    if (!body.name?.trim()) {
+  if (!name) {
+    return c.json(
+      {
+        error: 'name is required',
+      },
+      400
+    );
+  }
+
+  try {
+    const result = await c.env.DB
+      .prepare(`
+        INSERT INTO departments
+          (name, description)
+        VALUES (?, ?)
+      `)
+      .bind(
+        name,
+        body.description?.trim() || null
+      )
+      .run();
+
+    const department = await c.env.DB
+      .prepare(`
+        SELECT *
+        FROM departments
+        WHERE id = ?
+      `)
+      .bind(result.meta.last_row_id)
+      .first();
+
+    return c.json(department, 201);
+  } catch (error: any) {
+    console.error('POST /departments error:', error);
+
+    if (
+      error?.message?.includes('UNIQUE') ||
+      error?.message?.includes('constraint')
+    ) {
       return c.json(
         {
-          error:
-            'name is required',
+          error: 'Department name already exists',
         },
-        400
+        409
       );
     }
 
-    try {
-      const result =
-        await db.execute({
-          sql: `
-            INSERT INTO departments (
-              name,
-              description
-            )
-            VALUES (?, ?)
-          `,
-          args: [
-            body.name.trim(),
-            body.description?.trim() ||
-              null,
-          ],
-        });
-
-      const row =
-        await db.execute({
-          sql: `
-            SELECT *
-            FROM departments
-            WHERE id = ?
-          `,
-          args: [
-            result.lastInsertRowid,
-          ],
-        });
-
-      return c.json(
-        row.rows[0],
-        201
-      );
-    } catch (e: any) {
-      if (
-        e.message?.includes('UNIQUE')
-      ) {
-        return c.json(
-          {
-            error:
-              'Department name already exists',
-          },
-          409
-        );
-      }
-
-      throw e;
-    }
+    return c.json(
+      {
+        error: 'Failed to create department',
+      },
+      500
+    );
   }
-);
+});
 
 export default departments;

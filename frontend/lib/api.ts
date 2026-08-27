@@ -1,18 +1,38 @@
 const BASE =
   process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3001';
+  'http://localhost:8787';
 
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
+async function req<T>(
+  path: string,
+  options?: RequestInit
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options?.headers ?? {}),
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({
+        error: res.statusText,
+      }));
+
+    throw new Error(
+      (err as any).error ?? 'Request failed'
+    );
+  }
+
+  return res.json();
+}
 
 export interface Client {
   id: number;
   name: string;
   email?: string;
-  username?: string;
   created_at: string;
 }
 
@@ -38,9 +58,7 @@ export interface Process {
   title: string;
   description?: string;
 
-  type:
-    | 'flow'
-    | 'standalone';
+  type: 'flow' | 'standalone';
 
   status:
     | 'pending'
@@ -59,274 +77,38 @@ export interface AdminClient
   departments: ClientDepartment[];
 }
 
-export interface LoginResponse {
-  token: string;
-  role: 'admin' | 'client';
-  username?: string;
-  client?: Client;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Authentication
-|--------------------------------------------------------------------------
-*/
-
-const TOKEN_KEY =
-  'process_tracker_token';
-
-export function getToken() {
-  if (
-    typeof window ===
-    'undefined'
-  ) {
-    return null;
-  }
-
-  return localStorage.getItem(
-    TOKEN_KEY
-  );
-}
-
-export function setToken(
-  token: string
-) {
-  localStorage.setItem(
-    TOKEN_KEY,
-    token
-  );
-}
-
-export function clearToken() {
-  localStorage.removeItem(
-    TOKEN_KEY
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Request helper
-|--------------------------------------------------------------------------
-*/
-
-async function req<T>(
-  path: string,
-  options?: RequestInit
-): Promise<T> {
-  const token =
-    getToken();
-
-  const headers: HeadersInit = {
-    'Content-Type':
-      'application/json',
-
-    ...(options?.headers ?? {}),
-  };
-
-  if (token) {
-    (
-      headers as Record<
-        string,
-        string
-      >
-    ).Authorization =
-      `Bearer ${token}`;
-  }
-
-  const res =
-    await fetch(
-      `${BASE}${path}`,
-      {
-        ...options,
-        headers,
-      }
-    );
-
-  if (!res.ok) {
-    const err =
-      await res
-        .json()
-        .catch(() => ({
-          error:
-            res.statusText,
-        }));
-
-    if (
-      res.status === 401 &&
-      typeof window !==
-        'undefined'
-    ) {
-      clearToken();
-    }
-
-    throw new Error(
-      (err as any).error ??
-        'Request failed'
-    );
-  }
-
-  return res.json();
-}
-
-/*
-|--------------------------------------------------------------------------
-| API
-|--------------------------------------------------------------------------
-*/
-
 export const api = {
-  /*
-  |--------------------------------------------------------------------------
-  | Authentication
-  |--------------------------------------------------------------------------
-  */
-
-  adminLogin: (
-    username: string,
-    password: string
-  ) =>
-    req<LoginResponse>(
-      '/auth/admin-login',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      }
-    ),
-
-  clientLogin: (
-    username: string,
-    password: string
-  ) =>
-    req<LoginResponse>(
-      '/auth/client-login',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      }
-    ),
-
-  getCurrentUser: () =>
-    req<
-      | {
-          role: 'admin';
-          username: string;
-        }
-      | {
-          role: 'client';
-          client: Client;
-        }
-    >('/auth/me'),
-
-  logout: () =>
-    req<{
-      success: boolean;
-    }>('/auth/logout', {
-      method: 'POST',
-    }),
-
-  /*
-  |--------------------------------------------------------------------------
-  | Admin / Clients
-  |--------------------------------------------------------------------------
-  */
+  // --------------------------------------------------
+  // CLIENTS
+  // --------------------------------------------------
 
   getClients: () =>
-    req<Client[]>(
-      '/clients'
-    ),
+    req<Client[]>('/clients'),
+
+  getClient: (id: number) =>
+    req<Client>(`/clients/${id}`),
 
   createClient: (
     name: string,
-    email: string | undefined,
-    username: string,
-    password: string
+    email?: string
   ) =>
-    req<Client>(
-      '/clients',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          email,
-          username,
-          password,
-        }),
-      }
-    ),
+    req<Client>('/clients', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        email,
+      }),
+    }),
 
-  updateClientCredentials: (
-    clientId: number,
-    username: string,
-    password?: string
-  ) =>
-    req<{
-      success: boolean;
-    }>(
-      `/clients/${clientId}/credentials`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      }
-    ),
-
-  getClient: (
-    clientId: number
-  ) =>
-    req<Client>(
-      `/clients/${clientId}`
-    ),
-
-  /*
-  |--------------------------------------------------------------------------
-  | Client departments
-  |--------------------------------------------------------------------------
-  */
+  // --------------------------------------------------
+  // CLIENT DEPARTMENTS
+  // --------------------------------------------------
 
   getClientDepartments: (
     clientId: number
   ) =>
     req<ClientDepartment[]>(
       `/clients/${clientId}/departments`
-    ),
-
-  /*
-  |--------------------------------------------------------------------------
-  | Current logged-in client
-  |--------------------------------------------------------------------------
-  */
-
-  getMyClient: () =>
-    req<Client>(
-      '/clients/me'
-    ),
-
-  getMyDepartments: () =>
-    req<ClientDepartment[]>(
-      '/clients/me/departments'
-    ),
-
-  createMyDepartment: (
-    name: string,
-    description?: string
-  ) =>
-    req<ClientDepartment>(
-      '/clients/me/departments/create',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          description,
-        }),
-      }
     ),
 
   assignDepartment: (
@@ -338,42 +120,33 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify({
-          department_id:
-            departmentId,
+          department_id: departmentId,
         }),
       }
     ),
 
-  assignMyDepartment: (
-    departmentId: number
-  ) =>
-    req(
-      '/clients/me/departments',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          department_id:
-            departmentId,
-        }),
-      }
-    ),
-
-  /*
-  |--------------------------------------------------------------------------
-  | Departments
-  |--------------------------------------------------------------------------
-  */
+  // --------------------------------------------------
+  // DEPARTMENTS
+  // --------------------------------------------------
 
   getDepartments: () =>
-    req<Department[]>(
-      '/departments'
-    ),
+    req<Department[]>('/departments'),
 
-  /*
-  |--------------------------------------------------------------------------
-  | Processes
-  |--------------------------------------------------------------------------
-  */
+  createDepartment: (
+    name: string,
+    description?: string
+  ) =>
+    req<Department>('/departments', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        description,
+      }),
+    }),
+
+  // --------------------------------------------------
+  // PROCESSES
+  // --------------------------------------------------
 
   getProcesses: (
     clientId: number,
@@ -408,9 +181,7 @@ export const api = {
       }
     ),
 
-  deleteProcess: (
-    id: number
-  ) =>
+  deleteProcess: (id: number) =>
     req(
       `/processes/${id}`,
       {
@@ -418,11 +189,9 @@ export const api = {
       }
     ),
 
-  /*
-  |--------------------------------------------------------------------------
-  | Admin overview
-  |--------------------------------------------------------------------------
-  */
+  // --------------------------------------------------
+  // ADMIN
+  // --------------------------------------------------
 
   getAdminOverview: () =>
     req<AdminClient[]>(
