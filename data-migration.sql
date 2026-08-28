@@ -2,8 +2,8 @@
 PRAGMA foreign_keys = ON;
 
 -- clients
-INSERT INTO "clients" ("id", "name", "email", "username", "password_hash", "created_at") VALUES (1, 'ABC company', 'abc@mail.com', 'Client1', '3d5f7e274ed071346d6cc013d60fae32:39e9c2eb2e09cea4eba599d81ce587e3e8df8506e94c97dbcf7ae08a972def389becf5f5d25608974856e23ef0a900bcf73310163240eb2a9072a8fe0c655cb8', '2026-08-27 08:03:47');
-INSERT INTO "clients" ("id", "name", "email", "username", "password_hash", "created_at") VALUES (2, 'XYZCompany', 'XYZ@mail.com', 'Client2', '2fa5b9d63e332b09e138dcee56bbe7c1:c7d077a9bb7306d65cacf064a95733815438ff3790ae5c7bb89b465c3c69492c8ce3205647cd800f50e9dcb336e2cf8a33d169859e3b2ce410b883afcb67fbf4', '2026-08-27 08:14:45');
+INSERT INTO "clients" ("id", "name", "email", "username", "password_hash", "created_at") VALUES (1, 'ABC company', 'abc@mail.com', 'Client1', 'pbkdf2:100000:69a283a6f669567ad91a82d6489e96bf:94294a67af255666b13a1efa353fa7fff26aaf1ef9e3a8e6836abe5402c05d5b', '2026-08-27 08:03:47');
+INSERT INTO "clients" ("id", "name", "email", "username", "password_hash", "created_at") VALUES (2, 'XYZCompany', 'XYZ@mail.com', 'Client2', 'pbkdf2:100000:81215aa3b936d742beff2a74f659ba20:a9ad7d53ab2ee26a0492b8f615fc63002ac9a672fe9d21589752d753a8032724', '2026-08-27 08:14:45');
 
 -- departments
 INSERT INTO "departments" ("id", "name", "description", "created_at") VALUES (1, 'HR Department', NULL, '2026-08-27 08:04:48');

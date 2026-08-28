@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "node sync-db.cjs && wrangler dev",
     "deploy": "wrangler deploy",
+    "db:sync": "node sync-db.cjs",
     "db:local": "wrangler d1 execute collect-db --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute collect-db --remote --file=./schema.sql"
   },

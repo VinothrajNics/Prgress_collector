@@ -1,7 +1,10 @@
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
 const fs = require('fs');
+const path = require('path');
 
-const db = new Database('../data.db', { readonly: true });
+const db = new DatabaseSync(path.resolve(__dirname, '../data.db'), {
+  readOnly: true,
+});
 
 function sqlValue(value) {
   if (value === null || value === undefined) {
@@ -51,6 +54,6 @@ for (const table of tables) {
 
 db.close();
 
-fs.writeFileSync('../data-migration.sql', output, 'utf8');
+fs.writeFileSync(path.resolve(__dirname, '../data-migration.sql'), output, 'utf8');
 
-console.log('✅ Migration file created: D:\\Collect\\data-migration.sql');
+console.log('Migration file created: D:\\Collect\\data-migration.sql');

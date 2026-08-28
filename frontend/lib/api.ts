@@ -113,68 +113,28 @@ async function request<T>(
 export const api = {
   async login(
     username: string,
-    password: string
+    password: string,
+    role: "admin" | "client" = "client"
   ): Promise<LoginResponse> {
-    /*
-     * The backend has two login endpoints:
-     *
-     * /admin-login
-     * /client-login
-     *
-     * We first try client-login.
-     *
-     * If that fails, try admin-login.
-     *
-     * This allows one common login page.
-     */
+    const endpoint =
+      role === "admin"
+        ? "/admin-login"
+        : "/client-login";
 
-    let clientError: any = null;
+    const result = await request<LoginResponse>(
+      endpoint,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      }
+    );
 
-    try {
-      const result = await request<LoginResponse>(
-        "/client-login",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            username,
-            password,
-          }),
-        }
-      );
+    saveLogin(result);
 
-      saveLogin(result);
-
-      return result;
-    } catch (error) {
-      clientError = error;
-    }
-
-    try {
-      const result = await request<LoginResponse>(
-        "/admin-login",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            username,
-            password,
-          }),
-        }
-      );
-
-      saveLogin(result);
-
-      return result;
-    } catch (adminError: any) {
-      /*
-       * If both fail, show the useful backend error.
-       */
-
-      throw new Error(
-        adminError?.message ||
-          clientError?.message ||
-          "Invalid username or password."
-      );
-    }
+    return result;
   },
 
   async me(): Promise<MeResponse> {
@@ -186,8 +146,14 @@ export const api = {
       await request("/logout", {
         method: "POST",
       });
+    } catch {
+      // Session may already be invalid; clear locally anyway.
     } finally {
       clearLogin();
+
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   },
 

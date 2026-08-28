@@ -27,51 +27,15 @@ app.use('*', logger());
 app.use(
   '*',
   cors({
-    origin: (origin, c) => {
-      const frontendUrl =
-        c.env.FRONTEND_URL;
-
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        frontendUrl,
-      ].filter(
-        (value): value is string =>
-          Boolean(value)
-      );
-
+    origin: (origin) => {
       /*
-        Development / server-to-server requests
+        Allow any origin. Authentication relies on the
+        Authorization header (bearer token), not cookies,
+        so unrestricted CORS is safe here. This supports
+        localhost, LAN IPs, and any deployed frontend.
       */
 
-      if (!origin) {
-        return allowedOrigins[0] ?? '*';
-      }
-
-      if (
-        allowedOrigins.includes(origin)
-      ) {
-        return origin;
-      }
-
-      /*
-        Vercel deployments (production + preview).
-        Preview URLs look like collect-frontend-xxxx.vercel.app.
-      */
-
-      if (
-        /^https:\/\/[\w-]+\.vercel\.app$/.test(
-          origin
-        )
-      ) {
-        return origin;
-      }
-
-      /*
-        Don't allow unknown origins.
-      */
-
-      return allowedOrigins[0] ?? '';
+      return origin ?? '*';
     },
 
     allowMethods: [

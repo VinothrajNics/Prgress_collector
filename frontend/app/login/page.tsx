@@ -27,6 +27,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] =
     useState(false);
 
+  const [role, setRole] = useState<
+    "client" | "admin"
+  >("client");
+
   const [loading, setLoading] =
     useState(false);
 
@@ -63,25 +67,9 @@ export default function LoginPage() {
       const result =
         await api.login(
           cleanUsername,
-          password
+          password,
+          role
         );
-
-      /*
-       * CLIENT
-       *
-       * Backend response:
-       *
-       * {
-       *   token,
-       *   role: "client",
-       *   client: {
-       *      id,
-       *      name,
-       *      email,
-       *      username
-       *   }
-       * }
-       */
 
       if (result.role === "client") {
         if (!result.client?.id) {
@@ -169,6 +157,47 @@ export default function LoginPage() {
             onSubmit={handleSubmit}
             className="px-7 pb-7 space-y-5"
           >
+
+            {/* Role selector */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Account Type
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 rounded-xl p-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRole("client")
+                  }
+                  disabled={loading}
+                  className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition ${
+                    role === "client"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  <Users size={16} />
+                  Client
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRole("admin")
+                  }
+                  disabled={loading}
+                  className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition ${
+                    role === "admin"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  <ShieldCheck size={16} />
+                  Admin
+                </button>
+              </div>
+            </div>
 
             {/* Username */}
             <div>

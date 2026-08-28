@@ -1,6 +1,9 @@
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
+const path = require('path');
 
-const db = new Database('../data.db', { readonly: true });
+const db = new DatabaseSync(path.resolve(__dirname, '../data.db'), {
+  readOnly: true,
+});
 
 const tables = db
   .prepare(`
