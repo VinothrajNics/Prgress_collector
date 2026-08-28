@@ -55,6 +55,19 @@ app.use(
       }
 
       /*
+        Vercel deployments (production + preview).
+        Preview URLs look like collect-frontend-xxxx.vercel.app.
+      */
+
+      if (
+        /^https:\/\/[\w-]+\.vercel\.app$/.test(
+          origin
+        )
+      ) {
+        return origin;
+      }
+
+      /*
         Don't allow unknown origins.
       */
 
