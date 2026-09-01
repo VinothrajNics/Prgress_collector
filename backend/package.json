@@ -1,19 +1,21 @@
 {
   "name": "collect-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node sync-db.cjs && wrangler dev",
+    "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:sync": "node sync-db.cjs",
-    "db:local": "wrangler d1 execute collect-db --local --file=./schema.sql",
-    "db:remote": "wrangler d1 execute collect-db --remote --file=./schema.sql"
+    "db:local": "wrangler d1 execute collect-db --local --file=./migrations/0002_dpdp.sql",
+    "db:remote": "wrangler d1 execute collect-db --remote --file=./migrations/0002_dpdp.sql",
+    "db:fix": "wrangler d1 execute collect-db --remote --file=./migrations/0003_dpdp_fix.sql",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "hono": "^4.13.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260827.1",
+    "typescript": "^5",
     "wrangler": "^4.127.0"
   }
 }

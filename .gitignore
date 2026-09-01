@@ -1,14 +1,28 @@
+# Dependencies
 node_modules/
+
+# Build output
 .next/
 out/
+*.tsbuildinfo
 
+# Environment
 .env
 .env.local
 .env.*.local
 
+# Local databases
+*.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
+# Cloudflare local state
+.wrangler/
+
+# Misc
 .DS_Store
 Thumbs.db
 .vscode/
@@ -18,61 +32,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
-*.njsproj
-*.sln
-*.sw?
 *.swp
 *.swo
 *.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-*.njsproj
-*.sln
-*.sw?
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
-*.swx
-*.swp
-*.swo
