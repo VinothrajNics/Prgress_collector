@@ -8,7 +8,7 @@ import { esc, downloadBlob, uid } from '@/lib/utils';
 import type { Dataset } from '@/lib/types';
 
 export default function InventoryTab() {
-  const { state, mutate, toast } = useApp();
+  const { state, mutate, toast, canEdit, showCompany, clientNameOf } = useApp();
   const ui = useUi();
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
@@ -117,9 +117,11 @@ export default function InventoryTab() {
   return (
     <section className="tab-panel active">
       <div className="toolbar">
-        <button className="btn" onClick={addDataset}>
-          + Add Data Inventory Record
-        </button>
+        {canEdit && (
+          <button className="btn" onClick={addDataset}>
+            + Add Data Inventory Record
+          </button>
+        )}
         <input
           type="text"
           placeholder="Search data set, purpose, system..."
@@ -141,14 +143,17 @@ export default function InventoryTab() {
           <option value="Clean">No Findings</option>
         </select>
         <div className="spacer"></div>
-        <button className="btn secondary" onClick={exportCsv}>
-          Export CSV
-        </button>
+        {canEdit && (
+          <button className="btn secondary" onClick={exportCsv}>
+            Export CSV
+          </button>
+        )}
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
+              {showCompany && <th>Company</th>}
               <th>Data Set</th>
               <th>Department</th>
               <th>Principal</th>
@@ -157,18 +162,20 @@ export default function InventoryTab() {
               <th>Cross-Border</th>
               <th>Retention</th>
               <th>Risk</th>
-              <th></th>
+              {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={(showCompany ? 1 : 0) + 8 + (canEdit ? 1 : 0)}>
                   <div className="empty-state">
                     No data inventory records match.{' '}
-                    <button className="btn sm" onClick={addDataset}>
-                      + Add Record
-                    </button>
+                    {canEdit && (
+                      <button className="btn sm" onClick={addDataset}>
+                        + Add Record
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -179,10 +186,11 @@ export default function InventoryTab() {
                 const badgeClass = sev === 'High' ? 'high' : sev === 'Medium' ? 'medium' : 'ok';
                 return (
                   <tr key={ds.id}>
+                    {showCompany && <td>{esc(clientNameOf((ds as { clientId?: string }).clientId || ''))}</td>}
                     <td>
                       <b>{esc(ds.name)}</b>
                     </td>
-                    <td>{esc(deptName(ds.departmentId))}</td>
+                    <td>{deptName(ds.departmentId)}</td>
                     <td>{esc(ds.dataPrincipalType || '-')}</td>
                     <td>{esc(ds.sensitivity || '-')}</td>
                     <td>
@@ -201,19 +209,21 @@ export default function InventoryTab() {
                         {sev === 'Clean' ? 'No findings' : sev + ' (' + findings.length + ')'}
                       </span>
                     </td>
-                    <td>
-                      <button className="icon-btn" title="Edit" onClick={() => editDataset(ds)}>
-                        &#9998;
-                      </button>
-                      <button
-                        className="icon-btn"
-                        title="Delete"
-                        style={{ color: 'var(--danger)' }}
-                        onClick={() => deleteDataset(ds)}
-                      >
-                        &#128465;
-                      </button>
-                    </td>
+                    {canEdit && (
+                      <td>
+                        <button className="icon-btn" title="Edit" onClick={() => editDataset(ds)}>
+                          &#9998;
+                        </button>
+                        <button
+                          className="icon-btn"
+                          title="Delete"
+                          style={{ color: 'var(--danger)' }}
+                          onClick={() => deleteDataset(ds)}
+                        >
+                          &#128465;
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:local": "wrangler d1 execute collect-db --local --file=./migrations/0002_dpdp.sql",
-    "db:remote": "wrangler d1 execute collect-db --remote --file=./migrations/0002_dpdp.sql",
+    "db:local": "wrangler d1 execute collect-db --local --file=./migrations/0002_dpdp.sql && wrangler d1 execute collect-db --local --file=./migrations/0003_dpdp_fix.sql && wrangler d1 execute collect-db --local --file=./migrations/0004_multi_client.sql",
+    "db:remote": "wrangler d1 execute collect-db --remote --file=./migrations/0002_dpdp.sql && wrangler d1 execute collect-db --remote --file=./migrations/0003_dpdp_fix.sql && wrangler d1 execute collect-db --remote --file=./migrations/0004_multi_client.sql",
     "db:fix": "wrangler d1 execute collect-db --remote --file=./migrations/0003_dpdp_fix.sql",
     "typecheck": "tsc --noEmit"
   },

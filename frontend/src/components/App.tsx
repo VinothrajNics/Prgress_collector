@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Department, Process } from '@/lib/types';
 import { useApp } from '@/store/AppContext';
+import { navFor } from '@/lib/constants';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import Toast from './Toast';
@@ -12,10 +13,11 @@ import DepartmentTab from './DepartmentTab';
 import InventoryTab from './InventoryTab';
 import ThirdPartyTab from './ThirdPartyTab';
 import ReportsTab from './ReportsTab';
+import UsersTab from './UsersTab';
 import SettingsTab from './SettingsTab';
+import ProcessRegisterPage from './ProcessRegisterPage';
 import Modal from './Modal';
 import DataProfileModal from './DataProfileModal';
-import DeptProcessModal from './DeptProcessModal';
 import ProcessDetailModal from './ProcessDetailModal';
 import PrintModal from './PrintModal';
 
@@ -29,7 +31,7 @@ export interface GenericModalState {
 interface UiValue {
   openModal: (type: string, record: object | null, title: string, onSave: (rec: Record<string, unknown>) => void) => void;
   openDataProfile: (dep: Department) => void;
-  openDeptProcess: (dep: Department) => void;
+  openProcessRegister: (dep: Department) => void;
   openProcessDetail: (dep: Department, proc?: Process) => void;
   openPrint: (type: string) => void;
   setTab: (tab: string) => void;
@@ -44,12 +46,40 @@ export function useUi(): UiValue {
 }
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard');
+  const { role, isAdmin, scopeClientId, companyMode, loaded } = useApp();
+  const nav = useMemo(
+    () => navFor(role, isAdmin ? !!scopeClientId : true),
+    [role, isAdmin, scopeClientId]
+  );
+
+  const [tab, setTabState] = useState('dashboard');
+  const [procPageDep, setProcPageDep] = useState<Department | null>(null);
   const [genericModal, setGenericModal] = useState<GenericModalState | null>(null);
   const [dataProfileDep, setDataProfileDep] = useState<Department | null>(null);
-  const [deptProcessDep, setDeptProcessDep] = useState<Department | null>(null);
   const [processModal, setProcessModal] = useState<{ dep: Department; proc?: Process } | null>(null);
   const [printType, setPrintType] = useState<string | null>(null);
+
+  const navTabs = useMemo(() => new Set(nav.map((n) => n.tab)), [nav]);
+  const safeTab = navTabs.has(tab) ? tab : 'dashboard';
+
+  useEffect(() => {
+    if (tab !== safeTab) setTabState(safeTab);
+  }, [tab, safeTab]);
+
+  // Changing company scope closes any open department register page that does
+  // not belong to the newly selected company.
+  useEffect(() => {
+    if (!procPageDep) return;
+    const cid = (procPageDep as { clientId?: string }).clientId || '';
+    if (isAdmin && (!scopeClientId || (cid && cid !== scopeClientId))) {
+      setProcPageDep(null);
+    }
+  }, [procPageDep, scopeClientId, isAdmin]);
+
+  const setTab = (t: string) => {
+    setProcPageDep(null);
+    setTabState(t);
+  };
 
   const openModal = (type: string, record: object | null, title: string, onSave: (rec: Record<string, unknown>) => void) =>
     setGenericModal({ type, record, title, onSave });
@@ -57,7 +87,7 @@ export default function App() {
   const ui: UiValue = {
     openModal,
     openDataProfile: (dep) => setDataProfileDep(dep),
-    openDeptProcess: (dep) => setDeptProcessDep(dep),
+    openProcessRegister: (dep) => setProcPageDep(dep),
     openProcessDetail: (dep, proc) => setProcessModal({ dep, proc }),
     openPrint: (type) => setPrintType(type),
     setTab,
@@ -66,11 +96,19 @@ export default function App() {
   return (
     <UiContext.Provider value={ui}>
       <div id="app">
-        <Sidebar tab={tab} setTab={setTab} />
+        <Sidebar tab={safeTab} setTab={setTab} />
         <div id="main">
-          <Topbar tab={tab} />
+          <Topbar tab={safeTab} titleOverride={procPageDep ? 'Process Register' : undefined} subtitleOverride={procPageDep ? procPageDep.name : undefined} />
           <div id="content">
-            <DashboardShell tab={tab} />
+            {procPageDep ? (
+              <ProcessRegisterPage dep={procPageDep} onBack={() => setProcPageDep(null)} />
+            ) : !loaded ? (
+              <div className="empty-state" style={{ marginTop: 20 }}>
+                Loading workspace data…
+              </div>
+            ) : (
+              <TabView tab={safeTab} />
+            )}
           </div>
         </div>
         {genericModal && (
@@ -83,7 +121,6 @@ export default function App() {
           />
         )}
         {dataProfileDep && <DataProfileModal dep={dataProfileDep} onClose={() => setDataProfileDep(null)} />}
-        {deptProcessDep && <DeptProcessModal dep={deptProcessDep} onClose={() => setDeptProcessDep(null)} />}
         {processModal && (
           <ProcessDetailModal dep={processModal.dep} proc={processModal.proc} onClose={() => setProcessModal(null)} />
         )}
@@ -94,16 +131,7 @@ export default function App() {
   );
 }
 
-function DashboardShell({ tab }: { tab: string }) {
-  const { loaded } = useApp();
-  const ui = useUi();
-  if (!loaded) {
-    return (
-      <div className="empty-state" style={{ marginTop: 20 }}>
-        Loading workspace data…
-      </div>
-    );
-  }
+function TabView({ tab }: { tab: string }) {
   switch (tab) {
     case 'dashboard':
       return <DashboardTab />;
@@ -117,6 +145,8 @@ function DashboardShell({ tab }: { tab: string }) {
       return <ThirdPartyTab />;
     case 'reports':
       return <ReportsTab />;
+    case 'users':
+      return <UsersTab />;
     case 'settings':
       return <SettingsTab />;
     default:

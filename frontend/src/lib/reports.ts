@@ -14,7 +14,7 @@ export function evaluateRisks(ds: Dataset, thirdParties: ThirdParty[]): Finding[
   if (ds.sharedExternally === 'Yes' && !ds.thirdPartyId) findings.push({ sev: 'High', text: 'Recipient of shared data not identified', ds });
   if (ds.thirdPartyId) {
     const tp = thirdParties.find((t) => t.id === ds.thirdPartyId);
-    if (tp && tp.dpaInPlace === 'No') findings.push({ sev: 'High', text: 'Data Processing Agreement (DPA) unavailable with ' + tp.vendor, ds });
+    if (tp && tp.dpaInPlace !== 'Available') findings.push({ sev: 'High', text: 'Data Processing Agreement (DPA) unavailable with ' + tp.vendor, ds });
   }
   if (ds.crossBorder === 'Yes' && !ds.destinationCountry) findings.push({ sev: 'High', text: 'Cross-border transfer destination unknown', ds });
   if (ds.personalData === 'Yes' && !ds.storageLocation) findings.push({ sev: 'High', text: 'Storage location not identified', ds });
@@ -27,6 +27,14 @@ export function highestSeverity(findings: Finding[]): string {
   if (findings.some((f) => f.sev === 'High')) return 'High';
   if (findings.some((f) => f.sev === 'Medium')) return 'Medium';
   return 'Clean';
+}
+
+function partnerBrandRight(b: AppState['branding']): string {
+  if (!(b.partnerFirm || b.partnerLogo)) return '';
+  return `<div class="rpt-brand right">
+    ${b.partnerLogo ? `<img class="rpt-logo" src="${b.partnerLogo}" alt="partner logo" />` : `<div class="rpt-mark">${esc((b.partnerFirm || 'P').charAt(0))}</div>`}
+    <div><h2>${esc(b.partnerFirm)}</h2><div class="tag">${esc(b.partnerTagline)}</div></div>
+  </div>`;
 }
 
 function groupName(state: AppState, id: string): string {
@@ -69,10 +77,10 @@ export function buildReportHTML(type: string, state: AppState): string {
   let html = `<div class="rpt-page">
     <div class="rpt-letterhead">
       <div class="rpt-brand">
-        <div class="rpt-mark">${esc(b.companyName.charAt(0))}</div>
+        ${b.logo ? `<img class="rpt-logo" src="${b.logo}" alt="logo" />` : `<div class="rpt-mark">${esc(b.companyName.charAt(0))}</div>`}
         <div><h2>${esc(b.companyName)}</h2><div class="tag">${esc(b.tagline)}</div></div>
       </div>
-      <div class="rpt-meta">Generated: ${fmtDateTime(new Date())}<br>Prepared by: ${esc(b.consultant)}<br>${esc(b.designation)}<br>Contact: ${esc(b.phone)}</div>
+      ${partnerBrandRight(b)}
     </div>
     <div class="rpt-title">${titleMap[type] || ''}</div>
     <div class="rpt-sub">Confidential &mdash; prepared for internal management review under the Digital Personal Data Protection Act, 2023.</div>
@@ -134,16 +142,20 @@ export function buildSignoffBlock(
   info: { name: string; desig: string; email: string; date: string }
 ): string {
   const b = state.branding;
+  const brandRows: [string, string][] = [
+    ['Name:', b.consultant || ''],
+    ['Designation:', b.designation || ''],
+    ['Contact:', b.phone || ''],
+  ].filter((r) => r[1]) as [string, string][];
   return `
     <div class="rpt-signoff">
       <h4 style="border:none;color:var(--navy);font-size:13.5px;text-transform:uppercase;letter-spacing:0.4px;">Sign-off</h4>
       <div class="sign-grid">
         <div class="sign-box">
-          <h5>Prepared By (NICS)</h5>
+          <h5>Prepared By (${esc(b.companyName)})</h5>
+          ${b.logo ? `<div style="margin-bottom:8px;"><img class="rpt-logo sign-logo" src="${b.logo}" alt="logo" /></div>` : ''}
           <div class="sign-fields">
-            <div><b>Name:</b> ${esc(b.consultant)}</div>
-            <div><b>Designation:</b> ${esc(b.designation)}</div>
-            <div><b>Contact:</b> ${esc(b.phone)}</div>
+            ${brandRows.map(([k, v]) => `<div><b>${k}</b> ${esc(v)}</div>`).join('')}
             <div><b>Date:</b> ${fmtDate(new Date().toISOString().slice(0, 10))}</div>
           </div>
           <div class="sign-line"></div>

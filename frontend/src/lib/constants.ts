@@ -1,4 +1,4 @@
-import type { AppState } from './types';
+import type { AppState, Role } from './types';
 
 export const DEFAULT_DEPARTMENT_SEED = [
   'Administration',
@@ -54,6 +54,15 @@ export const DEFAULT_INFO_PASSED_OPTIONS = [
   'Government Department',
 ];
 
+export const VENDOR_TYPE_OPTIONS = ['Joint Fiduciary', 'Data Processor', 'Sub-processor', 'Service Provider', 'Do not know'];
+export const VENDOR_STATUS_OPTIONS = ['Active', 'Non Active'];
+export const AVAILABILITY_OPTIONS = ['Available', 'Not Available'];
+export const YES_NO_DONT_KNOW = ['Yes', 'No', 'Do not know'];
+export const RISK_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+export const TP_LOCATION_OPTIONS = ['India', 'Overseas'];
+export const TP_DEPT_CATEGORIES = ['HR', 'Payroll', 'IT', 'Cloud', 'Marketing', 'CRM', 'Finance', 'Sales', 'Operations', 'Legal', 'Procurement', 'Customer Service', 'Company Secretaryship'];
+export const DATA_PRINCIPAL_OPTIONS = ['Employees', 'Customers', 'Vendors', 'Children', 'Job Applicants', 'Business Contacts', 'Other'];
+
 export const PROCESS_SEED_BY_DEPT: Record<string, string[]> = {
   administration: ['Facility Management', 'Visitor Management', 'Asset Management', 'Travel & Logistics Coordination'],
   'human resources': ['Recruitment & Onboarding', 'Payroll Processing', 'Employee Performance Appraisal', 'Leave & Attendance Management', 'Exit / Offboarding Management'],
@@ -92,6 +101,15 @@ export const DEFAULT_BRANDING = {
   royal: '#1F4E9C',
   teal: '#0F7B7A',
   orange: '#E8721E',
+  logo: '',
+  partnerLogo: '',
+  partnerFirm: '',
+  partnerTagline: '',
+  partnerContact: '',
+  partnerDesignation: '',
+  partnerEmail: '',
+  partnerPhone: '',
+  partnerAddress: '',
 };
 
 export function defaultState(): AppState {
@@ -108,8 +126,59 @@ export function defaultState(): AppState {
       softwareOptions: [...DEFAULT_SOFTWARE_OPTIONS],
       infoPassedOptions: [...DEFAULT_INFO_PASSED_OPTIONS],
     },
+    clients: [],
   };
 }
+
+export interface NavItem {
+  tab: string;
+  icon: string;
+  label: string;
+}
+
+export const ALL_NAV: NavItem[] = [
+  { tab: 'dashboard', icon: '\u25A0', label: 'Dashboard' },
+  { tab: 'org', icon: '\u229E', label: 'Organisation Structure' },
+  { tab: 'department', icon: '\u2637', label: 'Department' },
+  { tab: 'inventory', icon: '\u2630', label: 'Data Inventory' },
+  { tab: 'thirdparty', icon: '\u21C4', label: 'Third Parties' },
+  { tab: 'reports', icon: '\u2709', label: 'Reports & Sign-off' },
+  { tab: 'users', icon: '\u263A', label: 'Users & Logins' },
+  { tab: 'settings', icon: '\u2699', label: 'Branding & Settings' },
+];
+
+export function navFor(role: Role, adminScopeCompany: boolean): NavItem[] {
+  const all = new Set(['dashboard', 'department', 'inventory', 'thirdparty', 'reports']);
+  if (role !== 'department') all.add('org');
+  if (role === 'department') {
+    // Department logins have no branding/settings, org structure or user management.
+    return ALL_NAV.filter((n) => all.has(n.tab));
+  }
+  if (role === 'admin') {
+    // Only the admin manages branding/settings (platform-level configuration).
+    const set = new Set(all);
+    set.add('settings');
+    if (adminScopeCompany) set.add('users');
+    return ALL_NAV.filter((n) => set.has(n.tab));
+  }
+  // Client logins manage users but not branding/settings.
+  const set = new Set(all);
+  set.add('users');
+  return ALL_NAV.filter((n) => set.has(n.tab));
+}
+
+export const DEMO_ACCOUNTS = [
+  { label: 'Admin (all companies)', username: 'admin', password: 'admin123' },
+  { label: 'Client company login', username: 'admin@demo.com', password: 'client123' },
+  { label: 'Department login - HR', username: 'hr', password: 'hr123' },
+  { label: 'Department login - IT', username: 'it', password: 'it123' },
+];
+
+export const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  client: 'Client',
+  department: 'Department',
+};
 
 export const TAB_TITLES: Record<string, [string, string]> = {
   dashboard: ['Dashboard', 'Discovery completeness, risk exposure and organisation snapshot'],
@@ -118,6 +187,7 @@ export const TAB_TITLES: Record<string, [string, string]> = {
   inventory: ['Data Inventory', 'Personal data sets, purpose, systems, sharing and retention'],
   thirdparty: ['Third Parties', 'Vendors and processors receiving personal data'],
   reports: ['Reports & Sign-off', 'Generate management reports with client acknowledgement'],
+  users: ['Users & Logins', 'Create, delete and assign department login accounts for this company'],
   settings: ['Branding & Settings', 'Configure workspace branding and sample data'],
 };
 
@@ -129,6 +199,7 @@ export type FieldType =
   | 'select-entity'
   | 'select-entity-dept'
   | 'select-thirdparty'
+  | 'multichips'
   | 'textarea'
   | 'number'
   | 'text';
@@ -141,6 +212,9 @@ export interface FieldDef {
   options?: string[];
   def?: string;
   list?: string;
+  readOnly?: boolean;
+  chipsMaster?: string;
+  hint?: string;
 }
 
 export const FIELD_DEFS: Record<string, FieldDef[]> = {
@@ -215,14 +289,23 @@ export const FIELD_DEFS: Record<string, FieldDef[]> = {
     { key: 'notes', label: 'Notes', type: 'textarea' },
   ],
   thirdparty: [
-    { key: 'vendor', label: 'Vendor / Third Party Name', required: true },
-    { key: 'type', label: 'Type', type: 'select', options: ['Processor', 'Sub-processor', 'Joint Controller', 'Vendor'] },
-    { key: 'service', label: 'Service Provided' },
-    { key: 'country', label: 'Country' },
-    { key: 'dataReceived', label: 'Data Received' },
-    { key: 'dpaInPlace', label: 'DPA in Place?', type: 'select', options: ['Yes', 'No'], def: 'No' },
-    { key: 'contract', label: 'Contract Signed?', type: 'select', options: ['Yes', 'No'], def: 'No' },
-    { key: 'securityAssessment', label: 'Security Assessment Done?', type: 'select', options: ['Yes', 'No'], def: 'No' },
-    { key: 'risk', label: 'Risk Rating', type: 'select', options: ['High', 'Medium', 'Low'], def: 'Medium' },
+    { key: 'code', label: 'Vendor ID', readOnly: true, hint: 'Auto-generated' },
+    { key: 'vendor', label: 'Vendor Name (Legal name)', required: true },
+    { key: 'vendorStatus', label: 'Vendor Status', type: 'select', options: VENDOR_STATUS_OPTIONS, def: 'Active' },
+    { key: 'type', label: 'Vendor Type', type: 'select', options: VENDOR_TYPE_OPTIONS, def: 'Data Processor' },
+    { key: 'departmentCategory', label: 'Department Category', list: 'tpDeptCat', hint: 'e.g. HR, Payroll, IT, Cloud, Marketing, CRM, Finance' },
+    { key: 'businessOwner', label: 'Business Owner', hint: 'Internal relationship owner' },
+    { key: 'vendorContact', label: 'Vendor Contact', type: 'select', options: AVAILABILITY_OPTIONS, def: 'Available' },
+    { key: 'contractOwner', label: 'Contract Owner', type: 'select', options: AVAILABILITY_OPTIONS, def: 'Available' },
+    { key: 'processingActivity', label: 'Processing Activity', type: 'textarea', hint: 'Descriptive answer' },
+    { key: 'purpose', label: 'Purpose of Processing', type: 'textarea', hint: 'Descriptive answer' },
+    { key: 'personalDataCategories', label: 'Personal Data Category', type: 'multichips', chipsMaster: 'personalDataOptions', hint: 'Multiple options accepted' },
+    { key: 'dataPrincipals', label: 'Data Principals', type: 'multichips', options: DATA_PRINCIPAL_OPTIONS, hint: 'Multiple options accepted' },
+    { key: 'volume', label: 'Volume', hint: 'Approx. number of data principals' },
+    { key: 'location', label: 'Location', type: 'select', options: TP_LOCATION_OPTIONS, def: 'India' },
+    { key: 'systems', label: 'Systems', list: 'tpSystems', hint: 'Application / platform used' },
+    { key: 'subProcessors', label: 'Sub-processors', type: 'select', options: YES_NO_DONT_KNOW, def: 'Do not know' },
+    { key: 'dpaInPlace', label: 'Data Processing Agreement', type: 'select', options: AVAILABILITY_OPTIONS, def: 'Available' },
+    { key: 'risk', label: 'Risk Rating', type: 'select', options: RISK_OPTIONS, def: 'Medium' },
   ],
 };

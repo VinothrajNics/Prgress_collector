@@ -8,6 +8,15 @@ export interface Branding {
   royal: string;
   teal: string;
   orange: string;
+  logo: string;
+  partnerLogo: string;
+  partnerFirm: string;
+  partnerTagline: string;
+  partnerContact: string;
+  partnerDesignation: string;
+  partnerEmail: string;
+  partnerPhone: string;
+  partnerAddress: string;
 }
 
 export interface Group {
@@ -109,26 +118,80 @@ export interface Dataset {
 
 export interface ThirdParty {
   id: string;
+  code?: string;
+  clientId?: string;
   vendor: string;
+  vendorStatus: string;
   type: string;
-  service: string;
-  country: string;
-  dataReceived: string;
+  departmentCategory: string;
+  businessOwner: string;
+  vendorContact: string;
+  contractOwner: string;
+  processingActivity: string;
+  purpose: string;
+  personalDataCategories: string[];
+  dataPrincipals: string[];
+  volume: string;
+  location: string;
+  systems: string;
+  subProcessors: string;
   dpaInPlace: string;
-  contract: string;
-  securityAssessment: string;
   risk: string;
 }
 
 export interface Signoff {
   id: string;
   report: string;
+  reportType?: string;
+  content?: string;
   generated: string;
   status: string;
   clientName: string;
   clientDesig: string;
   clientEmail: string;
   clientDate: string;
+}
+
+export type Role = 'admin' | 'client' | 'department';
+
+export interface AuthUser {
+  id: string;
+  clientId: string;
+  username: string;
+  name: string;
+  email: string;
+  role: Role;
+  status: string;
+  departmentIds: string[];
+  clientName: string;
+}
+
+export interface ClientLite {
+  id: string;
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  status: string;
+}
+
+export interface ClientSummary extends ClientLite {
+  createdAt: string;
+  counts: Record<string, number>;
+  users: number;
+  clientLogins: number;
+  deptLogins: number;
+}
+
+export interface WorkspaceUser {
+  id: string;
+  clientId: string;
+  username: string;
+  role: Role;
+  name: string;
+  email: string;
+  status: string;
+  departmentIds: string[];
 }
 
 export interface Settings {
@@ -154,6 +217,7 @@ export interface AppState {
   thirdParties: { list: ThirdParty[] };
   signoffs: { list: Signoff[] };
   settings: Settings;
+  clients: ClientLite[];
 }
 
-export type StateKey = keyof AppState;
+export type StateKey = 'branding' | 'org' | 'inventory' | 'thirdParties' | 'signoffs' | 'settings';

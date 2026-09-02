@@ -5,20 +5,28 @@ import { useUi } from './App';
 import { esc, uid } from '@/lib/utils';
 import type { ThirdParty } from '@/lib/types';
 
+function makeCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return 'VND-' + s;
+}
+
 export default function ThirdPartyTab() {
-  const { state, mutate, toast } = useApp();
+  const { state, mutate, toast, canEdit, showCompany, clientNameOf } = useApp();
   const ui = useUi();
   const list = state.thirdParties.list;
 
   const addTP = () =>
-    ui.openModal('thirdparty', null, 'Add Third Party', (rec) => {
+    ui.openModal('thirdparty', null, 'Add Third Party / Vendor', (rec) => {
       rec.id = uid('tp');
+      rec.code = makeCode();
       mutate('thirdParties', (t) => ({ ...t, list: [...t.list, rec as unknown as ThirdParty] }));
       toast('Third party added');
     });
 
   const editTP = (tp: ThirdParty) =>
-    ui.openModal('thirdparty', tp, 'Edit Third Party', (rec) => {
+    ui.openModal('thirdparty', tp, 'Edit Third Party / Vendor — ' + tp.vendor, (rec) => {
       Object.assign(tp, rec);
       mutate('thirdParties', (t) => ({ ...t, list: t.list.map((x) => (x.id === tp.id ? tp : x)) }));
       toast('Third party updated');
@@ -30,75 +38,99 @@ export default function ThirdPartyTab() {
     toast('Third party deleted');
   };
 
+  const riskCls = (r: string) => {
+    if (r === 'High' || r === 'Critical') return 'high';
+    if (r === 'Medium') return 'medium';
+    return 'ok';
+  };
+
+  const listCols = (showCompany ? 1 : 0) + 11 + (canEdit ? 1 : 0);
+
   return (
     <section className="tab-panel active">
       <div className="toolbar">
-        <button className="btn" onClick={addTP}>
-          + Add Third Party
-        </button>
+        {canEdit && (
+          <button className="btn" onClick={addTP}>
+            + Add Third Party / Vendor
+          </button>
+        )}
         <div className="spacer"></div>
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Vendor</th>
-              <th>Type</th>
-              <th>Service</th>
-              <th>Country</th>
+              {showCompany && <th>Company</th>}
+              <th>Vendor ID</th>
+              <th>Vendor Name</th>
+              <th>Vendor Status</th>
+              <th>Vendor Type</th>
+              <th>Dept Category</th>
+              <th>Business Owner</th>
+              <th>Vendor Contact</th>
+              <th>Contract Owner</th>
+              <th>Processing Activity</th>
               <th>DPA</th>
-              <th>Security Assessment</th>
               <th>Risk</th>
-              <th></th>
+              {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
             {list.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={listCols}>
                   <div className="empty-state">
                     No third parties recorded yet.{' '}
-                    <button className="btn sm" onClick={addTP}>
-                      + Add Third Party
-                    </button>
+                    {canEdit && (
+                      <button className="btn sm" onClick={addTP}>
+                        + Add Third Party / Vendor
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
             ) : (
               list.map((tp) => (
                 <tr key={tp.id}>
+                  {showCompany && <td>{esc(clientNameOf((tp as { clientId?: string }).clientId || ''))}</td>}
                   <td>
-                    <b>{esc(tp.vendor)}</b>
-                  </td>
-                  <td>{esc(tp.type || '-')}</td>
-                  <td>{esc(tp.service || '-')}</td>
-                  <td>{esc(tp.country || '-')}</td>
-                  <td>{tp.dpaInPlace === 'Yes' ? <span className="badge ok">Yes</span> : <span className="badge high">No</span>}</td>
-                  <td>
-                    {tp.securityAssessment === 'Yes' ? (
-                      <span className="badge ok">Yes</span>
-                    ) : (
-                      <span className="badge medium">No</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`badge ${tp.risk === 'High' ? 'high' : tp.risk === 'Low' ? 'ok' : 'medium'}`}>
-                      {esc(tp.risk || '-')}
+                    <span className="hint" style={{ fontFamily: 'monospace', fontSize: 11.5 }}>
+                      {esc(tp.code || '-')}
                     </span>
                   </td>
                   <td>
-                    <button className="icon-btn" title="Edit" onClick={() => editTP(tp)}>
-                      &#9998;
-                    </button>
-                    <button
-                      className="icon-btn"
-                      title="Delete"
-                      style={{ color: 'var(--danger)' }}
-                      onClick={() => deleteTP(tp)}
-                    >
-                      &#128465;
-                    </button>
+                    <b>{esc(tp.vendor)}</b>
                   </td>
+                  <td>
+                    <span className={`badge ${tp.vendorStatus === 'Active' ? 'ok' : 'high'}`}>{esc(tp.vendorStatus || 'Active')}</span>
+                  </td>
+                  <td>{esc(tp.type || '-')}</td>
+                  <td>{esc(tp.departmentCategory || '-')}</td>
+                  <td>{esc(tp.businessOwner || '-')}</td>
+                  <td>{esc(tp.vendorContact || '-')}</td>
+                  <td>{esc(tp.contractOwner || '-')}</td>
+                  <td style={{ maxWidth: 220 }}>{esc(tp.processingActivity || '-')}</td>
+                  <td>
+                    {tp.dpaInPlace === 'Available' ? <span className="badge ok">Available</span> : <span className="badge high">Not Available</span>}
+                  </td>
+                  <td>
+                    <span className={`badge ${riskCls(tp.risk)}`}>{esc(tp.risk || '-')}</span>
+                  </td>
+                  {canEdit && (
+                    <td>
+                      <button className="icon-btn" title="Edit" onClick={() => editTP(tp)}>
+                        &#9998;
+                      </button>
+                      <button
+                        className="icon-btn"
+                        title="Delete"
+                        style={{ color: 'var(--danger)' }}
+                        onClick={() => deleteTP(tp)}
+                      >
+                        &#128465;
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))
             )}

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
-import type { Entity, Group, OrgState, Process } from '@/lib/types';
+import type { Department, Entity, Group, OrgState, Process } from '@/lib/types';
 import { uid, fmtDateTime } from '@/lib/utils';
 
 function TreeItem({ node, children }: { node: ReactNode; children?: ReactNode }) {
@@ -19,6 +19,7 @@ function TreeNode({
   onEdit,
   onDelete,
   extra,
+  canEdit,
 }: {
   tag: string;
   name: ReactNode;
@@ -27,35 +28,45 @@ function TreeNode({
   onEdit?: () => void;
   onDelete?: () => void;
   extra?: ReactNode;
+  canEdit?: boolean;
 }) {
   const tagLabel: Record<string, string> = { grp: 'Group', ent: 'Entity', dep: 'Dept', proc: 'Process', act: 'Activity' };
+  const editable = canEdit !== false;
   return (
     <div className="tree-node">
       <span className={`tag ${tag}`}>{tagLabel[tag]}</span>
       <span className="name">{name}</span>
       <span className="meta">{meta}</span>
-      <div className="tree-actions">
-        {extra}
-        {onAdd && (
-          <button className="btn sm secondary" onClick={onAdd}>
-            + Add Child
+      {editable && (
+        <div className="tree-actions">
+          {extra}
+          {onAdd && (
+            <button className="btn sm secondary" onClick={onAdd}>
+              + Add Child
+            </button>
+          )}
+          <button className="icon-btn" title="Edit" onClick={onEdit}>
+            &#9998;
           </button>
-        )}
-        <button className="icon-btn" title="Edit" onClick={onEdit}>
-          &#9998;
-        </button>
-        <button className="icon-btn" title="Delete" style={{ color: 'var(--danger)' }} onClick={onDelete}>
-          &#128465;
-        </button>
-      </div>
+          <button className="icon-btn" title="Delete" style={{ color: 'var(--danger)' }} onClick={onDelete}>
+            &#128465;
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function OrgTreeTab() {
-  const { state, mutate, toast } = useApp();
+  const { state, mutate, toast, canEdit, showCompany, clientNameOf, setScopeClientId } = useApp();
   const ui = useUi();
   const [stamp] = useState(() => 'Last viewed: ' + fmtDateTime(new Date()));
+
+  const cidOf = (d: { clientId?: string }) => d.clientId || '';
+  const openRegister = (dep: Department) => {
+    if (showCompany && cidOf(dep as { clientId?: string })) setScopeClientId(cidOf(dep as { clientId?: string }));
+    ui.openProcessRegister(dep);
+  };
 
   const { groups, entities, departments, processes, activities } = state.org;
 
@@ -215,8 +226,9 @@ export default function OrgTreeTab() {
   const tree = useMemo(
     () =>
       groups.map((g) => {
+        const companyTag = showCompany ? (clientNameOf((g as { clientId?: string }).clientId || '') ? clientNameOf((g as { clientId?: string }).clientId || '') + ' · ' : '') : '';
         const grpMeta =
-          `${g.hqCountry || '-'} · DPO: ${g.dpo || '-'}` +
+          `${companyTag}${g.hqCountry || '-'} · DPO: ${g.dpo || '-'}` +
           (g.parentGroupId ? ` · Parent: ${groupName(g.parentGroupId)} (${g.holdingPercent || '?'}% held)` : '');
         return (
           <TreeItem
@@ -229,6 +241,7 @@ export default function OrgTreeTab() {
                 onAdd={() => addEntity(g)}
                 onEdit={() => editGroup(g)}
                 onDelete={() => deleteGroup(g)}
+                canEdit={canEdit}
               />
             }
           >
@@ -258,6 +271,7 @@ export default function OrgTreeTab() {
                         onAdd={() => addDepartment(ent)}
                         onEdit={() => editEntity(ent)}
                         onDelete={() => deleteEntity(ent)}
+                        canEdit={canEdit}
                       />
                     }
                   >
@@ -282,6 +296,7 @@ export default function OrgTreeTab() {
                                       updateOrg((o) => ({ ...o, activities: o.activities.filter((x) => x.id !== a.id) }));
                                     }
                                   }}
+                                  canEdit={canEdit}
                                 />
                               }
                             />
@@ -297,6 +312,7 @@ export default function OrgTreeTab() {
                                   onAdd={() => addActivity(p)}
                                   onEdit={() => ui.openProcessDetail(dep, p)}
                                   onDelete={() => deleteProcess(p)}
+                                  canEdit={canEdit}
                                 />
                               }
                             >
@@ -314,7 +330,7 @@ export default function OrgTreeTab() {
                                   <span
                                     className="dept-name-link"
                                     title="Click to open the Process Register for this department"
-                                    onClick={() => ui.openDeptProcess(dep)}
+                                    onClick={() => openRegister(dep)}
                                   >
                                     {dep.name}
                                   </span>
@@ -332,6 +348,7 @@ export default function OrgTreeTab() {
                                 onAdd={() => ui.openProcessDetail(dep)}
                                 onEdit={() => editDepartment(dep)}
                                 onDelete={() => deleteDepartment(dep.id)}
+                                canEdit={canEdit}
                               />
                             }
                           >
@@ -345,33 +362,48 @@ export default function OrgTreeTab() {
           </TreeItem>
         );
       }),
-    [groups, entities, departments, processes, activities]
+    [groups, entities, departments, processes, activities, canEdit, showCompany, clientNameOf]
   );
 
   return (
     <section className="tab-panel active">
-      <div className="toolbar">
-        <button className="btn" onClick={addGroup}>
-          + Add Group
-        </button>
-        <button className="btn secondary" onClick={() => ui.openPrint('org')}>
-          &#128438; Print / Export PDF
-        </button>
-        <div className="spacer"></div>
-        <span className="hint" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-          Group &rarr; Legal Entity &rarr; Department &rarr; Process &rarr; Activity
-        </span>
-      </div>
+      {canEdit ? (
+        <div className="toolbar">
+          <button className="btn" onClick={addGroup}>
+            + Add Group
+          </button>
+          <button className="btn secondary" onClick={() => ui.openPrint('org')}>
+            &#128438; Print / Export PDF
+          </button>
+          <div className="spacer"></div>
+          <span className="hint" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+            Group &rarr; Legal Entity &rarr; Department &rarr; Process &rarr; Activity
+          </span>
+        </div>
+      ) : (
+        <div className="toolbar">
+          <div className="spacer"></div>
+          <span className="hint" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+            Read-only — select a company in the filter to edit the structure
+          </span>
+        </div>
+      )}
       <div className="timestamp-line" style={{ marginBottom: 10 }}>
         {stamp}
       </div>
       {groups.length === 0 ? (
         <div className="empty-state">
-          No groups yet. Start by adding your organisation&apos;s top-level Group.
-          <br />
-          <button className="btn" onClick={addGroup}>
-            + Add Group
-          </button>
+          {canEdit ? (
+            <>
+              No groups yet. Start by adding your organisation&apos;s top-level Group.
+              <br />
+              <button className="btn" onClick={addGroup}>
+                + Add Group
+              </button>
+            </>
+          ) : (
+            'No groups to show.'
+          )}
         </div>
       ) : (
         <ul className="tree">{tree}</ul>

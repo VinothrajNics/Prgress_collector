@@ -143,6 +143,8 @@ tr:hover td{background:#FAFBFD;}
 .chip.selected{background:var(--royal);color:#fff;border-color:var(--royal);}
 .chip .chip-x{opacity:0.6;font-size:11px;}
 .chip .chip-x:hover{opacity:1;color:var(--danger);}
+.seed-chip{cursor:pointer;}
+.seed-chip:hover{background:#EEF3FC;border-color:var(--royal);}
 .chip-add-row{display:flex;gap:6px;margin-top:8px;}
 .chip-add-row input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px;}
 .field-hint{font-size:11px;color:var(--muted);margin-top:4px;}
@@ -221,7 +223,19 @@ tr:hover td{background:#FAFBFD;}
 .rpt-page{padding:10px 0;}
 .rpt-letterhead{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--navy);padding-bottom:12px;margin-bottom:18px;}
 .rpt-brand{display:flex;align-items:center;gap:12px;}
+.rpt-brand.right{flex-direction:row-reverse;text-align:right;}
+.rpt-brand.right h2,.rpt-brand.right .tag{text-align:right;}
 .rpt-mark{width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,var(--teal),var(--royal));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;}
+.rpt-logo{height:40px;width:auto;max-width:170px;object-fit:contain;}
+.sign-logo{height:32px;max-width:150px;}
+.rpt-partner{
+  display:flex;align-items:center;gap:14px;border:1px solid var(--border);
+  border-left:4px solid var(--navy);border-radius:6px;padding:8px 14px;margin:0 0 16px;background:var(--panel);
+}
+.rpt-partner-logo{height:34px;max-width:130px;object-fit:contain;}
+.rpt-partner-firm b{color:var(--navy);font-size:13px;}
+.rpt-partner-tag{font-size:11px;color:var(--muted);}
+.rpt-partner-meta{font-size:11.5px;color:var(--muted);}
 .rpt-brand h2{margin:0;color:var(--navy);font-size:19px;}
 .rpt-brand .tag{font-size:10.5px;color:var(--muted);text-transform:none;background:none;padding:0;font-weight:500;}
 .rpt-meta{text-align:right;font-size:11px;color:var(--muted);}
@@ -242,4 +256,50 @@ tr:hover td{background:#FAFBFD;}
   #printArea, #printArea *{visibility:visible;}
   #printArea{display:block;position:absolute;top:0;left:0;width:100%;padding:20px;}
   .no-print{display:none !important;}
+}
+
+/* ---------- Login ---------- */
+.login-shell{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#101A3A 0%,#1B2A5B 55%,#1F4E9C 100%);
+  padding:24px;
+}
+.login-card{
+  width:100%;max-width:430px;background:#fff;border-radius:10px;
+  padding:30px 30px 24px;box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}
+.login-mark{
+  width:48px;height:48px;border-radius:10px;color:#fff;font-size:26px;font-weight:800;
+  background:linear-gradient(135deg,var(--teal),var(--royal));
+  display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+}
+.login-card h1{margin:0 0 2px;font-size:20px;color:var(--navy);}
+.login-sub{margin:0 0 18px;font-size:12.5px;color:var(--muted);}
+.login-card .form-row span{display:block;font-size:12px;font-weight:600;color:var(--navy);margin-bottom:5px;}
+.login-card .form-row input{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:inherit;
+}
+.login-error{background:#FBEAEA;color:var(--danger);border:1px solid #F3C1BD;border-radius:var(--radius);padding:8px 12px;font-size:12.5px;margin-bottom:12px;}
+.login-btn{width:100%;justify-content:center;padding:10px;font-size:14px;}
+.login-demo{margin-top:22px;border-top:1px dashed var(--border);padding-top:14px;}
+.login-demo-title{font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted);font-weight:700;margin-bottom:8px;}
+.login-demo-row{
+  width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:7px 10px;margin-bottom:6px;cursor:pointer;font-family:inherit;
+}
+.login-demo-row:hover{border-color:var(--royal);background:#EEF3FC;}
+.login-demo-name{font-size:12px;color:var(--navy);}
+.login-demo-row code{font-size:11px;color:var(--muted);}
+
+/* ---------- Session footer in sidebar ---------- */
+.role-tag{
+  display:inline-block;background:rgba(255,255,255,0.16);color:#fff;border-radius:10px;
+  padding:1px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;
+}
+.session-name{font-size:12px;font-weight:600;color:#fff;}
+.session-client{font-size:10.5px;color:#B9C3DA;}
+.company-switch{
+  padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);
+  font-size:12.5px;background:#fff;color:var(--navy);font-weight:600;max-width:230px;
 }

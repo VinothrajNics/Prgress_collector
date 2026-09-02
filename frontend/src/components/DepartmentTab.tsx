@@ -8,12 +8,24 @@ import { esc } from '@/lib/utils';
 import type { Department, OrgState } from '@/lib/types';
 
 export default function DepartmentTab() {
-  const { state, mutate, toast } = useApp();
+  const { state, mutate, toast, role, canEdit, showCompany, clientNameOf, setScopeClientId } = useApp();
   const ui = useUi();
   const [search, setSearch] = useState('');
 
+  const isDept = role === 'department';
   const departments = state.org.departments;
   const entityName = (id: string) => state.org.entities.find((e) => e.id === id)?.legalName || '';
+  const companyOf = (d: Department) => clientNameOf((d as { clientId?: string }).clientId || '');
+
+  const cidOf = (d: Department) => (d as { clientId?: string }).clientId || '';
+  const openRegister = (d: Department) => {
+    if (showCompany && cidOf(d)) setScopeClientId(cidOf(d));
+    ui.openProcessRegister(d);
+  };
+  const openProfile = (d: Department) => {
+    if (showCompany && cidOf(d)) setScopeClientId(cidOf(d));
+    ui.openDataProfile(d);
+  };
 
   const updateOrg = (fn: (o: OrgState) => OrgState) => mutate('org', fn);
 
@@ -27,21 +39,64 @@ export default function DepartmentTab() {
 
   const renderSeedChips = () =>
     state.settings.departmentSeedOptions.map((opt) => (
-      <span key={opt} className="chip">
-        <span className="chip-label">{opt}</span>
+      <span
+        key={opt}
+        className="chip seed-chip"
+        title="Click to add this department to the company"
+        onClick={() => addSeedDepartment(opt)}
+      >
+        <span className="chip-label">+ {opt}</span>
         <span
           className="chip-edit"
           title="Rename"
           style={{ opacity: 0.6, fontSize: 11 }}
-          onClick={() => renameSeed(opt)}
+          onClick={(e) => {
+            e.stopPropagation();
+            renameSeed(opt);
+          }}
         >
           &#9998;
         </span>
-        <span className="chip-x" title="Remove" onClick={() => removeSeed(opt)}>
+        <span
+          className="chip-x"
+          title="Remove"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeSeed(opt);
+          }}
+        >
           &times;
         </span>
       </span>
     ));
+
+  const addSeedDepartment = (name: string) => {
+    const existing = departments.some((d) => d.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      toast('Department "' + name + '" already exists in this company', true);
+      return;
+    }
+    const dep: Department = {
+      id: uid('dep'),
+      entityId: '',
+      name,
+      headContact: '',
+      headDesignation: '',
+      headEmail: '',
+      headPhone: '',
+      employeeCount: '',
+      location: '',
+      criticality: 'Medium',
+      status: 'Active',
+      personalDataCollected: [],
+      mediumOfCollection: [],
+      retentionYears: '',
+      retentionMonths: '',
+      deviceUsed: '',
+    };
+    updateOrg((o) => ({ ...o, departments: [...o.departments, dep] }));
+    toast('Department "' + name + '" added');
+  };
 
   const renameSeed = (oldName: string) => {
     const newName = window.prompt('Rename standard department:', oldName);
@@ -136,39 +191,65 @@ export default function DepartmentTab() {
     toast('Department deleted');
   };
 
+  const manageDept = !isDept && canEdit;
+  const showActions = manageDept || canEdit;
+  const colCount = (showCompany ? 1 : 0) + 9 + (showActions ? 1 : 0);
+
   return (
     <section className="tab-panel active">
-      <div className="toolbar">
-        <button className="btn" onClick={addDepartment}>
-          + Add Department
-        </button>
-        <button className="btn secondary" onClick={addStandardDepts}>
-          + Add Standard Departments
-        </button>
-        <div className="spacer"></div>
-        <input
-          type="text"
-          placeholder="Search department, head, location..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      {manageDept && (
+        <div className="toolbar">
+          <button className="btn" onClick={addDepartment}>
+            + Add Department
+          </button>
+          <button className="btn secondary" onClick={addStandardDepts}>
+            + Add Standard Departments
+          </button>
+          <div className="spacer"></div>
+          <input
+            type="text"
+            placeholder="Search department, head, location..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0, color: 'var(--navy)', fontSize: 14 }}>
-          Standard Department List{' '}
-          <span className="hint" style={{ fontWeight: 400, fontSize: '11.5px', color: 'var(--muted)' }}>
-            (used by &quot;+ Add Standard Departments&quot; and as name suggestions &mdash; add, rename or remove entries here)
-          </span>
-        </h3>
-        <div className="chip-list">{renderSeedChips()}</div>
-        <SeedAddRow onAdd={addSeed} />
-      </div>
+      {manageDept && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0, color: 'var(--navy)', fontSize: 14 }}>
+            Standard Department List{' '}
+            <span className="hint" style={{ fontWeight: 400, fontSize: '11.5px', color: 'var(--muted)' }}>
+              (used by &quot;+ Add Standard Departments&quot; and as name suggestions &mdash; add, rename or remove entries here)
+            </span>
+          </h3>
+          <div className="chip-list">{renderSeedChips()}</div>
+          <SeedAddRow onAdd={addSeed} />
+        </div>
+      )}
+
+      {!manageDept && (
+        <div className="toolbar">
+          <input
+            type="text"
+            placeholder="Search department, head, location..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="spacer"></div>
+          {!canEdit && (
+            <span className="hint" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+              Read-only — select a company in the filter to manage departments
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
+              {showCompany && <th>Company</th>}
               <th>Department</th>
               <th>Legal Entity</th>
               <th>Head Name</th>
@@ -178,31 +259,38 @@ export default function DepartmentTab() {
               <th>Employees</th>
               <th>Location</th>
               <th>Status</th>
-              <th></th>
+              {showActions && <th></th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={colCount}>
                   <div className="empty-state">
-                    No departments yet. Use &quot;+ Add Department&quot; or &quot;+ Add Standard Departments&quot; above.
+                    {manageDept ? (
+                      <>
+                        No departments yet. Use &quot;+ Add Department&quot; or &quot;+ Add Standard Departments&quot; above.
+                      </>
+                    ) : (
+                      'No departments to show.'
+                    )}
                   </div>
                 </td>
               </tr>
             ) : (
               filtered.map((d) => (
                 <tr key={d.id}>
+                  {showCompany && <td>{esc(companyOf(d))}</td>}
                   <td>
                     <a
                       href="#"
                       className="dept-name-link"
                       onClick={(e) => {
                         e.preventDefault();
-                        ui.openDeptProcess(d);
+                        openRegister(d);
                       }}
                     >
-                      {esc(d.name)}
+                      {d.name}
                     </a>
                   </td>
                   <td>{esc(d.entityId ? entityName(d.entityId) : 'Unassigned')}</td>
@@ -215,25 +303,33 @@ export default function DepartmentTab() {
                   <td>
                     <span className={`badge ${d.status === 'Active' ? 'ok' : 'neutral'}`}>{esc(d.status || '-')}</span>
                   </td>
-                  <td>
-                    <button className="icon-btn" title="Process Register" onClick={() => ui.openDeptProcess(d)}>
-                      &#128203;
-                    </button>
-                    <button className="icon-btn" title="Data Profile" onClick={() => ui.openDataProfile(d)}>
-                      &#128202;
-                    </button>
-                    <button className="icon-btn" title="Edit" onClick={() => editDepartment(d)}>
-                      &#9998;
-                    </button>
-                    <button
-                      className="icon-btn"
-                      title="Delete"
-                      style={{ color: 'var(--danger)' }}
-                      onClick={() => deleteDepartment(d)}
-                    >
-                      &#128465;
-                    </button>
-                  </td>
+                  {showActions && (
+                    <td>
+                      <button className="icon-btn" title="Process Register" onClick={() => openRegister(d)}>
+                        &#128203;
+                      </button>
+                      {canEdit && (
+                        <button className="icon-btn" title="Data Profile" onClick={() => openProfile(d)}>
+                          &#128202;
+                        </button>
+                      )}
+                      {manageDept && (
+                        <>
+                          <button className="icon-btn" title="Edit" onClick={() => editDepartment(d)}>
+                            &#9998;
+                          </button>
+                          <button
+                            className="icon-btn"
+                            title="Delete"
+                            style={{ color: 'var(--danger)' }}
+                            onClick={() => deleteDepartment(d)}
+                          >
+                            &#128465;
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))
             )}

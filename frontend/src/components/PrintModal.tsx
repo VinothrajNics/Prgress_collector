@@ -31,6 +31,8 @@ export default function PrintModal({ type, onClose }: { type: string; onClose: (
         {
           id: uid('rpt'),
           report: TITLE_MAP[type] || type,
+          reportType: type,
+          content: fullHtml,
           generated: todayISO(),
           status: signName ? 'Acknowledged' : 'Draft',
           clientName: signName,

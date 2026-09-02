@@ -1,27 +1,16 @@
 'use client';
 
 import { useApp } from '@/store/AppContext';
-
-const NAV = [
-  { tab: 'dashboard', icon: '\u25A0', label: 'Dashboard' },
-  { tab: 'org', icon: '\u229E', label: 'Organisation Structure' },
-  { tab: 'department', icon: '\u2637', label: 'Department' },
-  { tab: 'inventory', icon: '\u2630', label: 'Data Inventory' },
-  { tab: 'thirdparty', icon: '\u21C4', label: 'Third Parties' },
-  { tab: 'reports', icon: '\u2709', label: 'Reports & Sign-off' },
-  { tab: 'settings', icon: '\u2699', label: 'Branding & Settings' },
-];
+import { navFor, ROLE_LABELS } from '@/lib/constants';
 
 export default function Sidebar({ tab, setTab }: { tab: string; setTab: (t: string) => void }) {
-  const { state } = useApp();
+  const { state, user, role, isAdmin, scopeClientId } = useApp();
   const b = state.branding;
+  const nav = navFor(role, isAdmin ? !!scopeClientId : true);
   return (
     <aside id="sidebar">
       <div className="brand">
-        <div
-          className="brand-mark"
-          style={{ background: `linear-gradient(135deg, ${b.teal}, ${b.royal})` }}
-        >
+        <div className="brand-mark" style={{ background: `linear-gradient(135deg, ${b.teal}, ${b.royal})` }}>
           {b.companyName.charAt(0).toUpperCase()}
         </div>
         <div>
@@ -30,20 +19,21 @@ export default function Sidebar({ tab, setTab }: { tab: string; setTab: (t: stri
         </div>
       </div>
       <nav className="nav">
-        {NAV.map((n) => (
-          <button
-            key={n.tab}
-            className={`nav-btn ${tab === n.tab ? 'active' : ''}`}
-            onClick={() => setTab(n.tab)}
-          >
+        {nav.map((n) => (
+          <button key={n.tab} className={`nav-btn ${tab === n.tab ? 'active' : ''}`} onClick={() => setTab(n.tab)}>
             <span className="nav-ico">{n.icon}</span> {n.label}
           </button>
         ))}
       </nav>
       <div className="nav-footer">
-        DPDP Data Discovery Workspace
-        <br />
-        &copy; NICS &mdash; Client Workspace
+        <div className="role-tag">{ROLE_LABELS[role] || role}</div>
+        <div className="session-name">{user?.name || user?.username}</div>
+        {user?.clientName ? <div className="session-client">{user.clientName}</div> : null}
+        <div style={{ marginTop: 8 }}>
+          DPDP Data Discovery Workspace
+          <br />
+          &copy; NICS
+        </div>
       </div>
     </aside>
   );
