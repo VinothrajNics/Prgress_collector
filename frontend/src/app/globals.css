@@ -43,11 +43,18 @@ body{
   border-bottom:1px solid rgba(255,255,255,0.12);
 }
 .brand-mark{
+  position:relative;
   width:38px;height:38px;border-radius:8px;
-  background:linear-gradient(135deg,var(--teal),var(--royal));
   display:flex;align-items:center;justify-content:center;
   font-weight:700;font-size:18px;color:#fff;
-  flex-shrink:0;
+  flex-shrink:0;overflow:hidden;
+}
+.brand-mark .brand-bg{position:absolute;inset:0;}
+.brand-mark .brand-letter{position:relative;z-index:1;}
+.brand-mark .brand-logo{
+  position:absolute;inset:0;z-index:2;
+  width:100%;height:100%;
+  object-fit:contain;background:#fff;padding:3px;
 }
 .brand-name{font-size:16px;font-weight:700;letter-spacing:0.5px;line-height:1.15;}
 .brand-sub{font-size:9.5px;color:#B9C3DA;letter-spacing:0.3px;margin-top:2px;}

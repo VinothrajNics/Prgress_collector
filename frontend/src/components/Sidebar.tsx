@@ -10,8 +10,19 @@ export default function Sidebar({ tab, setTab }: { tab: string; setTab: (t: stri
   return (
     <aside id="sidebar">
       <div className="brand">
-        <div className="brand-mark" style={{ background: `linear-gradient(135deg, ${b.teal}, ${b.royal})` }}>
-          {b.companyName.charAt(0).toUpperCase()}
+        <div className="brand-mark">
+          <div className="brand-bg" style={{ background: `linear-gradient(135deg, ${b.teal}, ${b.royal})` }} />
+          <span className="brand-letter">{b.companyName.charAt(0).toUpperCase()}</span>
+          {b.logo ? (
+            <img
+              className="brand-logo"
+              src={b.logo}
+              alt=""
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : null}
         </div>
         <div>
           <div className="brand-name">{b.companyName}</div>
