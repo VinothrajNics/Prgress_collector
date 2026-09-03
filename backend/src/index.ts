@@ -445,6 +445,7 @@ app.delete('/api/admin/clients/:id', async (c) => {
   }
   await db.prepare('DELETE FROM client_branding WHERE clientId = ?').bind(id).run();
   await db.prepare('DELETE FROM client_settings WHERE clientId = ?').bind(id).run();
+  await db.prepare('DELETE FROM risk_responses WHERE clientId = ?').bind(id).run();
   await db.prepare('DELETE FROM clients WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
@@ -694,6 +695,49 @@ app.put('/api/state/signoffs', async (c) => {
   if (!clientId) return c.json({ error: 'Select a company workspace before saving' }, 400);
   const body = (await c.req.json()) as { list?: Record<string, unknown>[] };
   await syncTable(c.env.DB, { table: 'signoffs', incoming: body.list || [], clientId, role: u.role, authority: true });
+  return c.json({ ok: true });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Risk compliance questionnaire responses                             */
+/* ------------------------------------------------------------------ */
+
+async function riskScope(u: AuthUser, clientIdParam: string | undefined, db: D1Database): Promise<string | null> {
+  if (u.role === 'department') return null;
+  if (u.role === 'admin') {
+    const raw = clientIdParam || '';
+    return raw && (await clientExists(db, raw)) ? raw : null;
+  }
+  return u.clientId || null;
+}
+
+app.get('/api/risk/responses', async (c) => {
+  const u = await currentUser(c);
+  if (!u) return c.json({ error: 'Unauthorized' }, 401);
+  const clientId = await riskScope(u, c.req.query('clientId') || undefined, c.env.DB);
+  if (!clientId) return c.json({ error: 'Select a company workspace' }, 400);
+  const rows = (
+    await c.env.DB.prepare('SELECT questionId, answer, updatedAt FROM risk_responses WHERE clientId = ?').bind(clientId).all()
+  ).results as { questionId: string; answer: string; updatedAt: string }[];
+  return c.json({ list: rows });
+});
+
+app.put('/api/risk/responses', async (c) => {
+  const u = await currentUser(c);
+  if (!u) return c.json({ error: 'Unauthorized' }, 401);
+  const clientId = await riskScope(u, c.req.query('clientId') || undefined, c.env.DB);
+  if (!clientId) return c.json({ error: 'Select a company workspace' }, 400);
+  const body = (await c.req.json()) as { answers?: Record<string, string> };
+  const answers = body.answers || {};
+  const now = new Date().toISOString();
+  await c.env.DB.prepare('DELETE FROM risk_responses WHERE clientId = ?').bind(clientId).run();
+  for (const [qid, answer] of Object.entries(answers)) {
+    if (answer === undefined || answer === null || answer === '') continue;
+    await c.env.DB
+      .prepare('INSERT INTO risk_responses (clientId, questionId, answer, updatedAt) VALUES (?, ?, ?, ?)')
+      .bind(clientId, qid, String(answer), now)
+      .run();
+  }
   return c.json({ ok: true });
 });
 

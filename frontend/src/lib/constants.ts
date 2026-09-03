@@ -139,10 +139,12 @@ export interface NavItem {
 export const ALL_NAV: NavItem[] = [
   { tab: 'dashboard', icon: '\u25A0', label: 'Dashboard' },
   { tab: 'org', icon: '\u229E', label: 'Organisation Structure' },
+  { tab: 'risk', icon: '\u263C', label: 'Risk Compliance' },
   { tab: 'department', icon: '\u2637', label: 'Department' },
   { tab: 'inventory', icon: '\u2630', label: 'Data Inventory' },
   { tab: 'thirdparty', icon: '\u21C4', label: 'Third Parties' },
   { tab: 'reports', icon: '\u2709', label: 'Reports & Sign-off' },
+  { tab: 'companies', icon: '\u2302', label: 'Company Management' },
   { tab: 'users', icon: '\u263A', label: 'Users & Logins' },
   { tab: 'settings', icon: '\u2699', label: 'Branding & Settings' },
 ];
@@ -158,12 +160,17 @@ export function navFor(role: Role, adminScopeCompany: boolean): NavItem[] {
     // Only the admin manages branding/settings (platform-level configuration).
     const set = new Set(all);
     set.add('settings');
-    if (adminScopeCompany) set.add('users');
+    set.add('companies');
+    if (adminScopeCompany) {
+      set.add('users');
+      set.add('risk');
+    }
     return ALL_NAV.filter((n) => set.has(n.tab));
   }
-  // Client logins manage users but not branding/settings.
+  // Client logins manage users and the risk-compliance questionnaire, not branding/settings.
   const set = new Set(all);
   set.add('users');
+  set.add('risk');
   return ALL_NAV.filter((n) => set.has(n.tab));
 }
 
@@ -183,10 +190,12 @@ export const ROLE_LABELS: Record<string, string> = {
 export const TAB_TITLES: Record<string, [string, string]> = {
   dashboard: ['Dashboard', 'Discovery completeness, risk exposure and organisation snapshot'],
   org: ['Organisation Structure', 'Group, legal entity, department, process and activity hierarchy'],
+  risk: ['Risk Compliance', 'DPDP compliance questionnaire, weighted scoring and domain ratings'],
   department: ['Department', 'Department master list with head details, contacts and standard department presets'],
   inventory: ['Data Inventory', 'Personal data sets, purpose, systems, sharing and retention'],
   thirdparty: ['Third Parties', 'Vendors and processors receiving personal data'],
   reports: ['Reports & Sign-off', 'Generate management reports with client acknowledgement'],
+  companies: ['Company Management', 'Add, edit and open client companies managed by NICS'],
   users: ['Users & Logins', 'Create, delete and assign department login accounts for this company'],
   settings: ['Branding & Settings', 'Configure workspace branding and sample data'],
 };

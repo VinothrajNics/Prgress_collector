@@ -74,4 +74,8 @@ export const api = {
   saveThirdParties: (t: unknown, clientId?: string) => req('/api/state/third-parties', { method: 'PUT', body: t, clientId }),
   saveSignoffs: (s: unknown, clientId?: string) => req('/api/state/signoffs', { method: 'PUT', body: s, clientId }),
   saveSettings: (s: unknown, clientId?: string) => req('/api/state/settings', { method: 'PUT', body: s, clientId }),
+
+  getRiskResponses: (clientId?: string) => req<{ list: { questionId: string; answer: string; updatedAt: string }[] }>('/api/risk/responses', { clientId }),
+  saveRiskResponses: (answers: Record<string, string>, clientId?: string) =>
+    req('/api/risk/responses', { method: 'PUT', body: { answers }, clientId }),
 };

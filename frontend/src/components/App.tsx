@@ -13,6 +13,8 @@ import DepartmentTab from './DepartmentTab';
 import InventoryTab from './InventoryTab';
 import ThirdPartyTab from './ThirdPartyTab';
 import ReportsTab from './ReportsTab';
+import RiskComplianceTab from './RiskComplianceTab';
+import CompaniesTab from './CompaniesTab';
 import UsersTab from './UsersTab';
 import SettingsTab from './SettingsTab';
 import ProcessRegisterPage from './ProcessRegisterPage';
@@ -137,6 +139,8 @@ function TabView({ tab }: { tab: string }) {
       return <DashboardTab />;
     case 'org':
       return <OrgTreeTab />;
+    case 'risk':
+      return <RiskComplianceTab />;
     case 'department':
       return <DepartmentTab />;
     case 'inventory':
@@ -145,6 +149,8 @@ function TabView({ tab }: { tab: string }) {
       return <ThirdPartyTab />;
     case 'reports':
       return <ReportsTab />;
+    case 'companies':
+      return <CompaniesTab />;
     case 'users':
       return <UsersTab />;
     case 'settings':
