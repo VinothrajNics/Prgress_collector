@@ -5,8 +5,9 @@ import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
 import { evaluateRisks, highestSeverity } from '@/lib/reports';
 import { api } from '@/lib/api';
-import { esc } from '@/lib/utils';
 import type { ClientSummary, Dataset } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 interface CompanyForm {
   companyName: string;

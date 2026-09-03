@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
 import { evaluateRisks, highestSeverity } from '@/lib/reports';
-import { esc, downloadBlob, uid } from '@/lib/utils';
+import { downloadBlob, uid } from '@/lib/utils';
 import type { Dataset } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 export default function InventoryTab() {
   const { state, mutate, toast, canEdit, showCompany, clientNameOf } = useApp();

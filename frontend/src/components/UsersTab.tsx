@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { api } from '@/lib/api';
 import { ROLE_LABELS } from '@/lib/constants';
-import { esc } from '@/lib/utils';
 import type { WorkspaceUser } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 interface FormState {
   mode: 'new' | 'edit';

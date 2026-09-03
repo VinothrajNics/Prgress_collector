@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
 import { fmtDate } from '@/lib/utils';
-import { esc } from '@/lib/utils';
 import type { Signoff } from '@/lib/types';
 import ReportViewModal from './ReportViewModal';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 export default function ReportsTab() {
   const { state, mutate, toast, canEdit, showCompany, clientNameOf } = useApp();

@@ -2,8 +2,10 @@
 
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
-import { esc, uid } from '@/lib/utils';
+import { uid } from '@/lib/utils';
 import type { ThirdParty } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 function makeCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

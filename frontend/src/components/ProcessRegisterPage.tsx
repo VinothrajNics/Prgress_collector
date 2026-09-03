@@ -3,8 +3,10 @@
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
 import { getSuggestedProcesses } from '@/lib/constants';
-import { esc, retentionText, uid } from '@/lib/utils';
+import { retentionText, uid } from '@/lib/utils';
 import type { Department, Process } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 export default function ProcessRegisterPage({ dep, onBack }: { dep: Department; onBack: () => void }) {
   const { state, mutate, toast, canEdit, loaded } = useApp();

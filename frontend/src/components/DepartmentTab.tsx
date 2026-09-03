@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useUi } from './App';
 import { uid } from '@/lib/utils';
-import { esc } from '@/lib/utils';
 import type { Department, OrgState } from '@/lib/types';
+
+const esc = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 
 export default function DepartmentTab() {
   const { state, mutate, toast, role, canEdit, showCompany, clientNameOf, setScopeClientId } = useApp();
